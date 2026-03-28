@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>History — Biometric Car Security</title>
+  <link rel="stylesheet" href=style.css>
+  <style>
+    .hist-layout { padding: 32px; max-width: 1300px; margin: 0 auto; }
+
+    /* FILTERS BAR */
+    .filters-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding: 16px 20px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+
+    .filter-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .filter-label {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+
+    .filter-select {
+      background: rgba(0,0,0,0.4);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 7px 12px;
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      font-size: 0.85rem;
+      outline: none;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+
+    .filter-select:focus { border-color: var(--accent-cyan); }
+
+    .filter-input {
+      background: rgba(0,0,0,0.4);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 7px 12px;
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      font-size: 0.85rem;
+      outline: none;
+      width: 200px;
+      transition: border-color 0.2s;
+    }
+
+    .filter-input:focus { border-color: var(--accent-cyan); }
+    .filter-input::placeholder { color: var(--text-muted); }
+
+    .filters-spacer { flex: 1; }
+
+    /* STATS ROW */
+    .hist-stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+
+    /* PAGINATION */
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding-top: 20px;
+    }
+
+    .page-btn {
+      width: 36px; height: 36px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .page-btn:hover, .page-btn.active {
+      border-color: var(--border-active);
+      background: rgba(0,229,255,0.08);
+      color: var(--accent-cyan);
+    }
+
+    .page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    /* EXPANDED ROW */
+    .expand-row td {
+      padding: 0 !important;
+    }
+
+    .expand-content {
+      padding: 14px 20px;
+      background: rgba(0,229,255,0.03);
+      border-top: 1px solid rgba(0,229,255,0.08);
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .expand-item span:first-child {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 0.62rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .expand-item span:last-child {
+      font-family: var(--font-body);
+      font-size: 0.85rem;
+      color: var(--text-primary);
+    }
+
+    .clickable-row { cursor: pointer; }
+    .clickable-row:hover { background: rgba(0,229,255,0.04) !important; }
+
+    /* SCORE BAR */
+    .score-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .score-track {
+      flex: 1;
+      height: 4px;
+      background: rgba(0,229,255,0.1);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .score-fill {
+      height: 100%;
+      border-radius: 2px;
+      background: var(--accent-green);
+      transition: width 0.5s ease;
+    }
+
+    .score-fill.low { background: var(--accent-red); }
+    .score-fill.med { background: var(--accent-amber); }
+
+    .score-val {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--text-secondary);
+      width: 36px;
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <a class="nav-brand" href="dashboard.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="22" height="22">
+        <path d="M12 2L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7L12 2z"/>
+      </svg>
+      BIOCAR SEC
+    </a>
+    <ul class="nav-links">
+      <li><a href="dashboard.html">Dashboard</a></li>
+      <li><a href="gps.html">GPS</a></li>
+      <li><a href="history.html" class="active">History</a></li>
+      <li><a href="manager.html">Manager</a></li>
+    </ul>
+    <div class="nav-status">
+      <div class="status-dot"></div>
+      <span>ONLINE</span>
+    </div>
+  </nav>
+
+  <div class="page">
+    <div class="hist-layout">
+
+      <div class="section-header" style="margin-bottom:20px">
+        <h1 class="section-title">Access <span>History</span></h1>
+        <div style="display:flex;gap:10px;">
+          <button class="btn btn-secondary btn-sm" onclick="exportCSV()">⤓ Export CSV</button>
+          <button class="btn btn-secondary btn-sm" onclick="loadLogs()">↺ Refresh</button>
+        </div>
+      </div>
+
+      <!-- STATS -->
+      <div class="hist-stats">
+        <div class="stat-box">
+          <div class="stat-value" id="hs-total">—</div>
+          <div class="stat-label">Total Events</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-value" style="color:var(--accent-green)" id="hs-granted">—</div>
+          <div class="stat-label">Access Granted</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-value" style="color:var(--accent-red)" id="hs-denied">—</div>
+          <div class="stat-label">Access Denied</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-value" style="color:var(--accent-amber)" id="hs-rate">—%</div>
+          <div class="stat-label">Success Rate</div>
+        </div>
+      </div>
+
+      <!-- FILTERS -->
+      <div class="filters-bar">
+        <div class="filter-group">
+          <span class="filter-label">Status</span>
+          <select class="filter-select" id="filter-status" onchange="applyFilters()">
+            <option value="">All</option>
+            <option value="GRANTED">Granted</option>
+            <option value="DENIED">Denied</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">Method</span>
+          <select class="filter-select" id="filter-method" onchange="applyFilters()">
+            <option value="">All Methods</option>
+            <option value="FACE">Face Recognition</option>
+            <option value="PIN">PIN Backup</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">Search</span>
+          <input type="text" class="filter-input" id="filter-search" placeholder="Search by user..." oninput="applyFilters()" />
+        </div>
+        <div class="filters-spacer"></div>
+        <button class="btn btn-secondary btn-sm" onclick="clearFilters()">✕ Clear</button>
+        <span class="mono" style="font-size:0.72rem;color:var(--text-muted)" id="result-count"></span>
+      </div>
+
+      <!-- TABLE -->
+      <div class="card" style="padding:0">
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th></th>
+                <th>Timestamp</th>
+                <th>User</th>
+                <th>Method</th>
+                <th>Status</th>
+                <th>Match Score</th>
+                <th>GPS Location</th>
+                <th>Engine</th>
+              </tr>
+            </thead>
+            <tbody id="logs-body">
+              <tr>
+                <td colspan="8" style="text-align:center;color:var(--text-muted);padding:40px">
+                  Loading access logs...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="pagination" id="pagination"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="js/utils.js"></script>
+  <script>
+    let allLogs = [];
+    let filteredLogs = [];
+    let currentPage = 1;
+    const PAGE_SIZE = 15;
+
+    async function loadLogs() {
+      try {
+        const data = await apiGet('/logs?limit=200');
+        allLogs = data.logs || data;
+        updateStats(allLogs);
+        applyFilters();
+      } catch {
+        allLogs = generateDemoLogs(60);
+        updateStats(allLogs);
+        applyFilters();
+        showToast('Showing demo data — backend offline', 'info');
+      }
+    }
+
+    function generateDemoLogs(n) {
+      const users   = ['John Doe', 'Jane Smith', 'Unknown'];
+      const methods = ['FACE', 'PIN', 'FACE'];
+      const now = Date.now();
+      return Array.from({ length: n }, (_, i) => {
+        const status = Math.random() > 0.08 ? 'GRANTED' : 'DENIED';
+        const score  = status === 'GRANTED' ? Math.round(75 + Math.random() * 25) : Math.round(20 + Math.random() * 40);
+        const user   = status === 'GRANTED' ? users[Math.floor(Math.random()*2)] : users[2];
+        return {
+          timestamp:     new Date(now - i * 3600000 * (0.5 + Math.random())).toISOString(),
+          user,
+          method:        methods[Math.floor(Math.random()*2)],
+          status,
+          match_score:   score,
+          gps_location:  `-26.${(2000 + Math.floor(Math.random()*200))}, 28.${(400 + Math.floor(Math.random()*100))}`,
+          engine_status: status === 'GRANTED' ? 'ENABLED' : 'LOCKED'
+        };
+      });
+    }
+
+    function updateStats(logs) {
+      const granted = logs.filter(l => l.status === 'GRANTED').length;
+      const denied  = logs.filter(l => l.status === 'DENIED').length;
+      const rate    = logs.length ? Math.round(granted / logs.length * 100) : 0;
+      document.getElementById('hs-total').textContent   = logs.length;
+      document.getElementById('hs-granted').textContent = granted;
+      document.getElementById('hs-denied').textContent  = denied;
+      document.getElementById('hs-rate').textContent    = rate + '%';
+    }
+
+    function applyFilters() {
+      const status = document.getElementById('filter-status').value;
+      const method = document.getElementById('filter-method').value;
+      const search = document.getElementById('filter-search').value.toLowerCase();
+
+      filteredLogs = allLogs.filter(log => {
+        if (status && log.status !== status) return false;
+        if (method && log.method !== method) return false;
+        if (search && !(log.user || '').toLowerCase().includes(search)) return false;
+        return true;
+      });
+
+      currentPage = 1;
+      document.getElementById('result-count').textContent = `${filteredLogs.length} results`;
+      renderTable();
+      renderPagination();
+    }
+
+    function clearFilters() {
+      document.getElementById('filter-status').value  = '';
+      document.getElementById('filter-method').value  = '';
+      document.getElementById('filter-search').value  = '';
+      applyFilters();
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('logs-body');
+      const start = (currentPage - 1) * PAGE_SIZE;
+      const page  = filteredLogs.slice(start, start + PAGE_SIZE);
+
+      if (!page.length) {
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:40px">No records match the current filters</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = page.map((log, i) => {
+        const idx    = start + i;
+        const score  = log.match_score ?? null;
+        const scoreHtml = score !== null ? `
+          <div class="score-bar">
+            <div class="score-track">
+              <div class="score-fill ${score < 50 ? 'low' : score < 70 ? 'med' : ''}" style="width:${score}%"></div>
+            </div>
+            <span class="score-val">${score}%</span>
+          </div>` : '<span style="color:var(--text-muted)">—</span>';
+
+        return `
+          <tr class="clickable-row" onclick="toggleExpand(${idx}, this)">
+            <td style="color:var(--text-muted);font-family:var(--font-mono);font-size:0.68rem;width:30px">▸</td>
+            <td class="mono" style="font-size:0.78rem">${formatDate(log.timestamp)}</td>
+            <td style="font-weight:500">${log.user || '—'}</td>
+            <td>
+              <span class="badge ${log.method === 'FACE' ? 'badge-active' : 'badge-warning'}">
+                ${log.method || '—'}
+              </span>
+            </td>
+            <td>${statusBadge(log.status)}</td>
+            <td style="min-width:130px">${scoreHtml}</td>
+            <td class="mono" style="font-size:0.72rem;color:var(--text-secondary)">${log.gps_location || '—'}</td>
+            <td>
+              <span class="badge ${log.engine_status === 'ENABLED' ? 'badge-granted' : 'badge-denied'}">
+                ${log.engine_status || '—'}
+              </span>
+            </td>
+          </tr>
+          <tr class="expand-row" id="expand-${idx}" style="display:none">
+            <td colspan="8">
+              <div class="expand-content">
+                <div class="expand-item">
+                  <span>Full Timestamp</span>
+                  <span>${log.timestamp || '—'}</span>
+                </div>
+                <div class="expand-item">
+                  <span>Authentication Method</span>
+                  <span>${log.method === 'FACE' ? 'Facial Recognition' : 'Emergency PIN'}</span>
+                </div>
+                <div class="expand-item">
+                  <span>Match Confidence</span>
+                  <span>${log.match_score ? log.match_score + '%' : '—'}</span>
+                </div>
+                <div class="expand-item">
+                  <span>GPS Coordinates</span>
+                  <span>${log.gps_location || '—'}</span>
+                </div>
+                <div class="expand-item">
+                  <span>Engine Status</span>
+                  <span>${log.engine_status || '—'}</span>
+                </div>
+                <div class="expand-item">
+                  <span>Event Outcome</span>
+                  <span>${log.status || '—'}</span>
+                </div>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function toggleExpand(idx, row) {
+      const expandRow = document.getElementById(`expand-${idx}`);
+      const arrow = row.querySelector('td:first-child');
+      const isOpen = expandRow.style.display !== 'none';
+      expandRow.style.display = isOpen ? 'none' : 'table-row';
+      arrow.textContent = isOpen ? '▸' : '▾';
+    }
+
+    function renderPagination() {
+      const total = Math.ceil(filteredLogs.length / PAGE_SIZE);
+      const el = document.getElementById('pagination');
+      if (total <= 1) { el.innerHTML = ''; return; }
+
+      let html = `<button class="page-btn" onclick="goPage(${currentPage-1})" ${currentPage===1?'disabled':''}>‹</button>`;
+      for (let p = 1; p <= total; p++) {
+        if (total > 8 && p > 2 && p < total - 1 && Math.abs(p - currentPage) > 2) {
+          if (p === 3 || p === total - 2) html += `<span style="color:var(--text-muted);padding:0 4px">...</span>`;
+          continue;
+        }
+        html += `<button class="page-btn ${p===currentPage?'active':''}" onclick="goPage(${p})">${p}</button>`;
+      }
+      html += `<button class="page-btn" onclick="goPage(${currentPage+1})" ${currentPage===total?'disabled':''}>›</button>`;
+      el.innerHTML = html;
+    }
+
+    function goPage(p) {
+      const total = Math.ceil(filteredLogs.length / PAGE_SIZE);
+      if (p < 1 || p > total) return;
+      currentPage = p;
+      renderTable();
+      renderPagination();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function exportCSV() {
+      const headers = ['Timestamp','User','Method','Status','Match Score','GPS','Engine'];
+      const rows = filteredLogs.map(l =>
+        [l.timestamp, l.user, l.method, l.status, l.match_score ?? '', l.gps_location, l.engine_status].join(',')
+      );
+      const csv = [headers.join(','), ...rows].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url;
+      a.download = `access-history-${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+      showToast('CSV exported', 'success');
+    }
+
+    document.addEventListener('DOMContentLoaded', loadLogs);
+  </script>
+</body>
+</html>

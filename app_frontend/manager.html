@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manager — Biometric Car Security</title>
+  <link rel="stylesheet" href=style.css>
+  <style>
+    .mgr-layout { padding: 32px; max-width: 1400px; margin: 0 auto; }
+
+    /* TABS */
+    .mgr-tabs {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 24px;
+    }
+
+    .mgr-tab {
+      padding: 12px 24px;
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      font-family: var(--font-display);
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: -1px;
+    }
+
+    .mgr-tab:hover { color: var(--text-secondary); }
+
+    .mgr-tab.active {
+      color: var(--accent-cyan);
+      border-bottom-color: var(--accent-cyan);
+    }
+
+    .mgr-panel { display: none; }
+    .mgr-panel.active { display: block; }
+
+    /* DRIVER CARDS */
+    .driver-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .driver-card-full {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      transition: border-color 0.3s;
+    }
+
+    .driver-card-full:hover {
+      border-color: rgba(0,229,255,0.3);
+    }
+
+    .dc-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+
+    .dc-avatar {
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      background: rgba(0,229,255,0.1);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+    }
+
+    .dc-name {
+      font-family: var(--font-display);
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: var(--text-primary);
+    }
+
+    .dc-id {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: var(--text-secondary);
+      letter-spacing: 1.5px;
+    }
+
+    .dc-details {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+
+    .dc-detail {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.83rem;
+    }
+
+    .dc-detail span:first-child {
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      letter-spacing: 1px;
+    }
+
+    .dc-detail span:last-child { color: var(--text-primary); }
+
+    .dc-actions { display: flex; gap: 8px; }
+
+    /* SETTINGS */
+    .settings-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 0;
+      border-bottom: 1px solid rgba(0,229,255,0.05);
+    }
+
+    .setting-row:last-child { border-bottom: none; }
+
+    .setting-info h4 {
+      font-family: var(--font-body);
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-bottom: 3px;
+    }
+
+    .setting-info p {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+    }
+
+    /* TOGGLE SWITCH */
+    .toggle-switch {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+
+    .toggle-switch input { display: none; }
+
+    .toggle-switch label {
+      position: absolute;
+      inset: 0;
+      background: rgba(255,255,255,0.1);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background 0.3s;
+      border: 1px solid var(--border);
+    }
+
+    .toggle-switch label::after {
+      content: '';
+      position: absolute;
+      top: 3px; left: 3px;
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      transition: transform 0.3s, background 0.3s;
+    }
+
+    .toggle-switch input:checked + label { background: rgba(0,229,255,0.2); border-color: var(--accent-cyan); }
+    .toggle-switch input:checked + label::after {
+      transform: translateX(20px);
+      background: var(--accent-cyan);
+      box-shadow: var(--glow-cyan);
+    }
+
+    /* CONFIRM MODAL */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(5,10,15,0.88);
+      z-index: 300;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-overlay.show { display: flex; }
+
+    .modal {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 28px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 8px 48px rgba(0,0,0,0.7), var(--glow-red);
+      animation: fadeInUp 0.3s ease;
+    }
+
+    .modal h3 {
+      font-family: var(--font-display);
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--accent-red);
+      margin-bottom: 10px;
+    }
+
+    .modal p {
+      color: var(--text-secondary);
+      font-size: 0.88rem;
+      line-height: 1.6;
+      margin-bottom: 20px;
+    }
+
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+    /* SYSTEM LOG */
+    .sys-log {
+      background: #000;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 16px;
+      height: 240px;
+      overflow-y: auto;
+      font-family: var(--font-mono);
+      font-size: 0.73rem;
+      line-height: 1.8;
+    }
+
+    .log-line { color: var(--text-secondary); }
+    .log-line.ok   { color: var(--accent-green); }
+    .log-line.warn { color: var(--accent-amber); }
+    .log-line.err  { color: var(--accent-red); }
+    .log-line .ts  { color: var(--text-muted); margin-right: 10px; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <a class="nav-brand" href="dashboard.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="22" height="22">
+        <path d="M12 2L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7L12 2z"/>
+      </svg>
+      BIOCAR SEC
+    </a>
+    <ul class="nav-links">
+      <li><a href="dashboard.html">Dashboard</a></li>
+      <li><a href="gps.html">GPS</a></li>
+      <li><a href="history.html">History</a></li>
+      <li><a href="manager.html" class="active">Manager</a></li>
+    </ul>
+    <div class="nav-status">
+      <div class="status-dot"></div>
+      <span>ONLINE</span>
+    </div>
+  </nav>
+
+  <div class="page">
+    <div class="mgr-layout">
+      <div class="section-header" style="margin-bottom:20px">
+        <h1 class="section-title">System <span>Manager</span></h1>
+        <a href="register.html" class="btn btn-primary btn-sm">+ Register Driver</a>
+      </div>
+
+      <!-- STATS ROW -->
+      <div class="grid-4" style="margin-bottom:24px">
+        <div class="stat-box">
+          <div class="stat-value" id="m-drivers">—</div>
+          <div class="stat-label">Drivers</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-value" id="m-active" style="color:var(--accent-green)">—</div>
+          <div class="stat-label">Active</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-value" id="m-total-acc" style="color:var(--accent-cyan)">—</div>
+          <div class="stat-label">Total Accesses</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-value" id="m-rate" style="color:var(--accent-amber)">—%</div>
+          <div class="stat-label">Success Rate</div>
+        </div>
+      </div>
+
+      <!-- TABS -->
+      <div class="mgr-tabs">
+        <button class="mgr-tab active" onclick="switchMgrTab('drivers')">⊚ Drivers</button>
+        <button class="mgr-tab" onclick="switchMgrTab('settings')">⚙ Settings</button>
+        <button class="mgr-tab" onclick="switchMgrTab('system')">◈ System</button>
+      </div>
+
+      <!-- DRIVERS PANEL -->
+      <div class="mgr-panel active" id="panel-drivers">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+          <input type="text" class="form-input" placeholder="Search drivers..." style="max-width:280px" id="driver-search" oninput="filterDrivers()" />
+          <select class="filter-select" id="driver-status-filter" onchange="filterDrivers()">
+            <option value="">All Status</option>
+            <option value="ACTIVE">Active</option>
+            <option value="INACTIVE">Inactive</option>
+          </select>
+          <span class="mono" style="font-size:0.72rem;color:var(--text-muted)" id="driver-count"></span>
+        </div>
+        <div class="driver-grid" id="driver-grid">
+          <div style="text-align:center;color:var(--text-muted);padding:40px;grid-column:1/-1;font-family:var(--font-mono)">Loading drivers...</div>
+        </div>
+      </div>
+
+      <!-- SETTINGS PANEL -->
+      <div class="mgr-panel" id="panel-settings">
+        <div class="settings-grid">
+          <div class="card">
+            <div class="card-title">Authentication</div>
+            <div class="card-subtitle">BIOMETRIC SETTINGS</div>
+
+            <div class="setting-row">
+              <div class="setting-info">
+                <h4>Face Recognition</h4>
+                <p>PRIMARY AUTH METHOD</p>
+              </div>
+              <div class="toggle-switch">
+                <input type="checkbox" id="tog-face" checked>
+                <label for="tog-face"></label>
+              </div>
+            </div>
+
+            <div class="setting-row">
+              <div class="setting-info">
+                <h4>Emergency PIN Backup</h4>
+                <p>FALLBACK AUTH</p>
+              </div>
+              <div class="toggle-switch">
+                <input type="checkbox" id="tog-pin" checked>
+                <label for="tog-pin"></label>
+              </div>
+            </div>
+
+            <div class="setting-row">
+              <div class="setting-info">
+                <h4>Match Threshold</h4>
+                <p>CONFIDENCE LEVEL (%)</p>
+              </div>
+              <input type="number" class="form-input" style="width:80px;text-align:center;padding:8px" value="60" min="40" max="95" id="conf-threshold" />
+            </div>
+
+            <div class="setting-row">
+              <div class="setting-info">
+                <h4>Max Login Attempts</h4>
+                <p>BEFORE LOCKOUT</p>
+              </div>
+              <input type="number" class="form-input" style="width:80px;text-align:center;padding:8px" value="3" min="1" max="10" id="max-attempts" />
+            </div>
+
+            <div style="margin-top:16px">
+              <button class="btn btn-primary btn-sm" onclick="saveAuthSettings()">Save Auth Settings</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">GPS &amp; Tracking</div>
+            <div class="card-subtitle">LOCATION SETTINGS</div>
+
+            <div class="setting-row">
+              <div class="setting-info">
+                <h4>GPS Tracking</h4>
+                <p>REAL-TIME LOCATION</p>
+              </div>
+              <div class="toggle-switch">
+                <input type="checkbox" id="tog-gps" checked>
+                <label for="tog-gps"></label>
+              </div>
+            </div>
+
+            <div class="setting-row">
+              <div class="setting-info">
+                <h4>Journey Logging</h4>
+                <p>SAVE ROUTE HISTORY</p>
+              </div>
+              <div class="toggle-switch">
+                <input type="checkbox" id="tog-log" checked>
+                <label for="tog-log"></label>
+              </div>
+            </div>
+
+            <div class="setting-row">
+              <div class="setting-info">
+                <h4>Update Interval (s)</h4>
+                <p>GPS REFRESH RATE</p>
+              </div>
+              <input type="number" class="form-input" style="width:80px;text-align:center;padding:8px" value="30" min="5" max="300" />
+            </div>
+
+            <div class="setting-row">
+              <div class="setting-info">
+                <h4>Geofencing</h4>
+                <p>AREA ALERTS</p>
+              </div>
+              <div class="toggle-switch">
+                <input type="checkbox" id="tog-geo">
+                <label for="tog-geo"></label>
+              </div>
+            </div>
+
+            <div style="margin-top:16px">
+              <button class="btn btn-primary btn-sm" onclick="saveGpsSettings()">Save GPS Settings</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Notifications</div>
+            <div class="card-subtitle">ALERT SETTINGS</div>
+
+            <div class="setting-row">
+              <div class="setting-info">
+                <h4>Denied Access Alerts</h4>
+                <p>NOTIFY ON FAILURE</p>
+              </div>
+              <div class="toggle-switch">
+                <input type="checkbox" id="tog-denied-alert" checked>
+                <label for="tog-denied-alert"></label>
+              </div>
+            </div>
+
+            <div class="setting-row">
+              <div class="setting-info">
+                <h4>Engine Lock Alerts</h4>
+                <p>STATUS CHANGES</p>
+              </div>
+              <div class="toggle-switch">
+                <input type="checkbox" id="tog-engine-alert" checked>
+                <label for="tog-engine-alert"></label>
+              </div>
+            </div>
+
+            <div class="setting-row">
+              <div class="setting-info">
+                <h4>SMS Notifications</h4>
+                <p>PHONE ALERTS</p>
+              </div>
+              <div class="toggle-switch">
+                <input type="checkbox" id="tog-sms">
+                <label for="tog-sms"></label>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Security</div>
+            <div class="card-subtitle">DATA &amp; ACCESS</div>
+
+            <div class="setting-row">
+              <div class="setting-info">
+                <h4>Encrypted Storage</h4>
+                <p>XOR + BASE64</p>
+              </div>
+              <div class="toggle-switch">
+                <input type="checkbox" id="tog-enc" checked disabled>
+                <label for="tog-enc"></label>
+              </div>
+            </div>
+
+            <div class="setting-row">
+              <div class="setting-info">
+                <h4>Access Logging</h4>
+                <p>AUDIT TRAIL</p>
+              </div>
+              <div class="toggle-switch">
+                <input type="checkbox" id="tog-audit" checked>
+                <label for="tog-audit"></label>
+              </div>
+            </div>
+
+            <div class="setting-row" style="margin-top:8px">
+              <div class="setting-info">
+                <h4 style="color:var(--accent-red)">Clear All Logs</h4>
+                <p>PERMANENT ACTION</p>
+              </div>
+              <button class="btn btn-danger btn-sm" onclick="confirmClearLogs()">Clear</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SYSTEM PANEL -->
+      <div class="mgr-panel" id="panel-system">
+        <div class="grid-2">
+          <div>
+            <div class="card" style="margin-bottom:20px">
+              <div class="card-title">Backend Status</div>
+              <div class="card-subtitle">API SERVER HEALTH</div>
+              <div id="sys-status-rows">
+                <div class="setting-row">
+                  <span style="color:var(--text-secondary)">FastAPI Server</span>
+                  <span class="badge" id="api-status-badge">Checking...</span>
+                </div>
+                <div class="setting-row">
+                  <span style="color:var(--text-secondary)">Face Recognition</span>
+                  <span class="badge badge-active">MODULE READY</span>
+                </div>
+                <div class="setting-row">
+                  <span style="color:var(--text-secondary)">Encryption</span>
+                  <span class="badge badge-granted">ACTIVE</span>
+                </div>
+                <div class="setting-row">
+                  <span style="color:var(--text-secondary)">GPS Module</span>
+                  <span class="badge badge-granted">ONLINE</span>
+                </div>
+                <div class="setting-row">
+                  <span style="color:var(--text-secondary)">Database</span>
+                  <span class="badge" id="db-status-badge">Checking...</span>
+                </div>
+              </div>
+              <div style="margin-top:16px">
+                <button class="btn btn-secondary btn-sm" onclick="checkSystemStatus()">↺ Check Status</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-title">Danger Zone</div>
+              <div class="card-subtitle">DESTRUCTIVE ACTIONS</div>
+              <div class="setting-row">
+                <div>
+                  <div style="font-weight:500;margin-bottom:3px">Factory Reset</div>
+                  <div class="mono" style="font-size:0.68rem;color:var(--text-muted)">WIPE ALL DATA AND SETTINGS</div>
+                </div>
+                <button class="btn btn-danger btn-sm" onclick="confirmReset()">Reset</button>
+              </div>
+              <div class="setting-row">
+                <div>
+                  <div style="font-weight:500;margin-bottom:3px">Lock All Vehicles</div>
+                  <div class="mono" style="font-size:0.68rem;color:var(--text-muted)">EMERGENCY ENGINE KILL</div>
+                </div>
+                <button class="btn btn-danger btn-sm" onclick="emergencyLock()">Lock All</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">System Log</div>
+            <div class="card-subtitle">REAL-TIME OUTPUT</div>
+            <div class="sys-log" id="sys-log"></div>
+            <div style="margin-top:12px;display:flex;gap:8px">
+              <button class="btn btn-secondary btn-sm" onclick="refreshLog()">↺ Refresh</button>
+              <button class="btn btn-secondary btn-sm" onclick="clearLog()">✕ Clear</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- CONFIRM MODAL -->
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal">
+      <h3 id="modal-title">Confirm Action</h3>
+      <p id="modal-body">Are you sure?</p>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-danger" id="modal-confirm-btn">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/utils.js"></script>
+  <script>
+    let allDrivers = [];
+    let pendingAction = null;
+
+    function switchMgrTab(tab) {
+      document.querySelectorAll('.mgr-tab').forEach((t, i) => {
+        const tabs = ['drivers','settings','system'];
+        t.classList.toggle('active', tabs[i] === tab);
+      });
+      document.querySelectorAll('.mgr-panel').forEach(p => p.classList.remove('active'));
+      document.getElementById(`panel-${tab}`).classList.add('active');
+      if (tab === 'system') { refreshLog(); checkSystemStatus(); }
+    }
+
+    async function loadDrivers() {
+      try {
+        const data = await apiGet('/users');
+        allDrivers = data.users || data;
+      } catch {
+        allDrivers = [
+          { name:'John Doe',   driver_id:'DRV-001', phone:'+27 82 000 0001', vehicle_registration:'CA 123-456', status:'ACTIVE',   total_accesses:58, last_access:new Date(Date.now()-3600000).toISOString(), registered_date:'2024-01-15T08:00:00Z' },
+          { name:'Jane Smith', driver_id:'DRV-002', phone:'+27 83 000 0002', vehicle_registration:'GP 456-789', status:'ACTIVE',   total_accesses:34, last_access:new Date(Date.now()-86400000).toISOString(), registered_date:'2024-02-20T09:00:00Z' },
+          { name:'Bob Mkhize', driver_id:'DRV-003', phone:'+27 84 000 0003', vehicle_registration:'KZN 789-012', status:'INACTIVE', total_accesses:12, last_access:new Date(Date.now()-604800000).toISOString(), registered_date:'2024-03-05T10:00:00Z' },
+        ];
+        showToast('Showing demo data', 'info');
+      }
+      // Stats
+      const active = allDrivers.filter(d => d.status === 'ACTIVE').length;
+      const total  = allDrivers.reduce((s, d) => s + (d.total_accesses || 0), 0);
+      document.getElementById('m-drivers').textContent   = allDrivers.length;
+      document.getElementById('m-active').textContent    = active;
+      document.getElementById('m-total-acc').textContent = total;
+      document.getElementById('m-rate').textContent      = '97%';
+      filterDrivers();
+    }
+
+    function filterDrivers() {
+      const search = document.getElementById('driver-search').value.toLowerCase();
+      const status = document.getElementById('driver-status-filter').value;
+      const filtered = allDrivers.filter(d => {
+        if (search && !(d.name||'').toLowerCase().includes(search) && !(d.driver_id||'').toLowerCase().includes(search)) return false;
+        if (status && d.status !== status) return false;
+        return true;
+      });
+      document.getElementById('driver-count').textContent = `${filtered.length} of ${allDrivers.length}`;
+      renderDrivers(filtered);
+    }
+
+    function renderDrivers(drivers) {
+      const grid = document.getElementById('driver-grid');
+      if (!drivers.length) {
+        grid.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:40px;grid-column:1/-1;font-family:var(--font-mono)">No drivers found</div>`;
+        return;
+      }
+      grid.innerHTML = drivers.map((d, i) => `
+        <div class="driver-card-full">
+          <div class="dc-header">
+            <div class="dc-avatar">🧑</div>
+            <div>
+              <div class="dc-name">${d.name || '—'}</div>
+              <div class="dc-id">${d.driver_id || '—'}</div>
+            </div>
+            ${statusBadge(d.status)}
+          </div>
+          <div class="dc-details">
+            <div class="dc-detail">
+              <span>PHONE</span><span>${d.phone || '—'}</span>
+            </div>
+            <div class="dc-detail">
+              <span>VEHICLE</span><span>${d.vehicle_registration || '—'}</span>
+            </div>
+            <div class="dc-detail">
+              <span>TOTAL ACCESSES</span><span>${d.total_accesses ?? 0}</span>
+            </div>
+            <div class="dc-detail">
+              <span>LAST ACCESS</span><span>${timeAgo(d.last_access)}</span>
+            </div>
+            <div class="dc-detail">
+              <span>REGISTERED</span><span>${formatDate(d.registered_date)}</span>
+            </div>
+          </div>
+          <div class="dc-actions">
+            <button class="btn btn-secondary btn-sm" style="flex:1" onclick="toggleDriverStatus(${i}, '${d.driver_id}', '${d.status}')">
+              ${d.status === 'ACTIVE' ? '⊗ Deactivate' : '✓ Activate'}
+            </button>
+            <button class="btn btn-danger btn-sm" onclick="confirmDeleteDriver('${d.driver_id}', '${d.name}')">
+              ✕
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function toggleDriverStatus(idx, driverId, currentStatus) {
+      const newStatus = currentStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+      allDrivers = allDrivers.map(d => d.driver_id === driverId ? {...d, status: newStatus} : d);
+      filterDrivers();
+      showToast(`Driver ${newStatus === 'ACTIVE' ? 'activated' : 'deactivated'}`, newStatus === 'ACTIVE' ? 'success' : 'info');
+    }
+
+    function confirmDeleteDriver(id, name) {
+      openModal(
+        '⚠ Delete Driver',
+        `This will permanently remove "${name}" (${id}) from the system, including all biometric data.`,
+        () => {
+          allDrivers = allDrivers.filter(d => d.driver_id !== id);
+          filterDrivers();
+          showToast(`Driver ${name} removed`, 'error');
+        }
+      );
+    }
+
+    function confirmClearLogs() {
+      openModal('Clear All Logs', 'This will permanently delete all access logs. This action cannot be undone.', () => {
+        showToast('All logs cleared', 'info');
+      });
+    }
+
+    function confirmReset() {
+      openModal('Factory Reset', 'This will permanently wipe all drivers, logs, and settings. The system will return to default state.', () => {
+        showToast('Factory reset initiated', 'error');
+      });
+    }
+
+    function emergencyLock() {
+      openModal('Emergency Lock', 'This will immediately lock all vehicle engines. All drivers will lose access.', () => {
+        showToast('All vehicles locked — emergency protocol active', 'error');
+      });
+    }
+
+    function saveAuthSettings() { showToast('Authentication settings saved', 'success'); }
+    function saveGpsSettings()  { showToast('GPS settings saved', 'success'); }
+
+    async function checkSystemStatus() {
+      const apiBadge = document.getElementById('api-status-badge');
+      const dbBadge  = document.getElementById('db-status-badge');
+      apiBadge.className = 'badge';
+      apiBadge.textContent = 'Checking...';
+      try {
+        await apiGet('/stats');
+        apiBadge.className   = 'badge badge-granted';
+        apiBadge.textContent = 'ONLINE';
+        dbBadge.className    = 'badge badge-granted';
+        dbBadge.textContent  = 'CONNECTED';
+        appendLog('ok', 'API server reachable');
+        appendLog('ok', 'Database connected');
+      } catch {
+        apiBadge.className   = 'badge badge-denied';
+        apiBadge.textContent = 'OFFLINE';
+        dbBadge.className    = 'badge badge-denied';
+        dbBadge.textContent  = 'DISCONNECTED';
+        appendLog('err', 'API server unreachable — start backend with: uvicorn server:app --reload');
+      }
+    }
+
+    function appendLog(type, msg) {
+      const log = document.getElementById('sys-log');
+      const now = new Date().toLocaleTimeString('en-ZA', { hour12: false });
+      const line = document.createElement('div');
+      line.className = `log-line ${type}`;
+      line.innerHTML = `<span class="ts">[${now}]</span>${msg}`;
+      log.appendChild(line);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function refreshLog() {
+      const log = document.getElementById('sys-log');
+      if (log.children.length === 0) {
+        appendLog('ok', 'System log initialised');
+        appendLog('ok', 'Biometric module ready');
+        appendLog('ok', 'GPS tracking active');
+        appendLog('warn', 'Check backend connectivity');
+      }
+    }
+
+    function clearLog() {
+      document.getElementById('sys-log').innerHTML = '';
+    }
+
+    // MODAL HELPERS
+    function openModal(title, body, onConfirm) {
+      document.getElementById('modal-title').textContent = title;
+      document.getElementById('modal-body').textContent  = body;
+      pendingAction = onConfirm;
+      document.getElementById('modal-overlay').classList.add('show');
+    }
+
+    function closeModal() {
+      document.getElementById('modal-overlay').classList.remove('show');
+      pendingAction = null;
+    }
+
+    document.getElementById('modal-confirm-btn').onclick = () => {
+      if (pendingAction) pendingAction();
+      closeModal();
+    };
+
+    document.getElementById('modal-overlay').onclick = e => {
+      if (e.target === e.currentTarget) closeModal();
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadDrivers();
+      checkSystemStatus();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Register — Biometric Car Security</title>
+  <link rel="stylesheet" href=style.css>
+  <style>
+    .reg-layout {
+      display: grid;
+      grid-template-columns: 1fr 420px;
+      gap: 24px;
+      padding: 32px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .reg-form-card { position: sticky; top: 80px; }
+
+    .steps {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      margin-bottom: 28px;
+    }
+
+    .step {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+    }
+
+    .step-num {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      flex-shrink: 0;
+      transition: all 0.3s;
+    }
+
+    .step.done .step-num {
+      background: var(--accent-green);
+      border-color: var(--accent-green);
+      color: var(--bg-primary);
+    }
+
+    .step.active .step-num {
+      border-color: var(--accent-cyan);
+      color: var(--accent-cyan);
+      box-shadow: var(--glow-cyan);
+    }
+
+    .step-label {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      transition: color 0.3s;
+    }
+
+    .step.active .step-label { color: var(--accent-cyan); }
+    .step.done .step-label { color: var(--accent-green); }
+
+    .step-connector {
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+      margin: 0 8px;
+    }
+
+    /* CAMERA CAPTURE */
+    .capture-area {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 4/3;
+      background: #000;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+
+    .capture-area video {
+      width: 100%; height: 100%; object-fit: cover;
+    }
+
+    .capture-area .cam-corners span {
+      position: absolute;
+      width: 18px; height: 18px;
+      border-color: var(--accent-cyan);
+      border-style: solid;
+      opacity: 0.7;
+    }
+    .capture-area .cam-corners span:nth-child(1) { top:8px; left:8px; border-width:2px 0 0 2px; }
+    .capture-area .cam-corners span:nth-child(2) { top:8px; right:8px; border-width:2px 2px 0 0; }
+    .capture-area .cam-corners span:nth-child(3) { bottom:8px; left:8px; border-width:0 0 2px 2px; }
+    .capture-area .cam-corners span:nth-child(4) { bottom:8px; right:8px; border-width:0 2px 2px 0; }
+
+    .cam-idle {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .cam-idle svg { width: 48px; height: 48px; color: var(--text-muted); opacity: 0.4; }
+
+    .captured-preview {
+      width: 100%;
+      border: 1px solid var(--accent-green);
+      border-radius: 6px;
+      margin-bottom: 12px;
+      display: none;
+      box-shadow: var(--glow-green);
+    }
+
+    /* Right column — info + summary */
+    .info-section { display: flex; flex-direction: column; gap: 20px; }
+
+    .info-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+    }
+
+    .info-card h3 {
+      font-family: var(--font-display);
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--accent-cyan);
+      margin-bottom: 14px;
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(0, 229, 255, 0.05);
+      font-size: 0.85rem;
+    }
+    .info-row:last-child { border-bottom: none; }
+    .info-row span:first-child { color: var(--text-secondary); font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 1px; }
+    .info-row span:last-child { color: var(--text-primary); font-weight: 500; }
+
+    .tip {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(0,229,255,0.05);
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+    }
+
+    .tip:last-child { border-bottom: none; }
+    .tip-icon { color: var(--accent-cyan); font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+
+    /* SUCCESS OVERLAY */
+    .success-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(5,10,15,0.92);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 20px;
+      text-align: center;
+    }
+
+    .success-overlay.show { display: flex; }
+
+    .success-icon {
+      width: 80px; height: 80px;
+      border-radius: 50%;
+      border: 3px solid var(--accent-green);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.5rem;
+      box-shadow: var(--glow-green);
+      animation: scannerPulse 1.5s ease infinite;
+    }
+
+    .success-title {
+      font-family: var(--font-display);
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--accent-green);
+    }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <a class="nav-brand" href="login.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M12 2L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7L12 2z"/>
+      </svg>
+      BIOCAR SEC
+    </a>
+    <ul class="nav-links">
+      <li><a href="login.html">Login</a></li>
+      <li><a href="register.html" class="active">Register</a></li>
+    </ul>
+  </nav>
+
+  <div class="page">
+    <div class="section">
+      <div class="section-header">
+        <h1 class="section-title">Register <span>New Driver</span></h1>
+      </div>
+
+      <div class="reg-layout">
+        <!-- FORM COLUMN -->
+        <div>
+          <div class="card reg-form-card">
+            <!-- Steps -->
+            <div class="steps">
+              <div class="step active" id="step-1">
+                <div class="step-num">1</div>
+                <div class="step-label">Details</div>
+              </div>
+              <div class="step-connector"></div>
+              <div class="step" id="step-2">
+                <div class="step-num">2</div>
+                <div class="step-label">Face Capture</div>
+              </div>
+              <div class="step-connector"></div>
+              <div class="step" id="step-3">
+                <div class="step-num">3</div>
+                <div class="step-label">Confirm</div>
+              </div>
+            </div>
+
+            <div id="msg-reg"></div>
+
+            <!-- STEP 1: Personal details -->
+            <div id="panel-1">
+              <div class="card-title">Personal Details</div>
+              <div class="card-subtitle">DRIVER INFORMATION</div>
+
+              <div class="grid-2">
+                <div class="form-group">
+                  <label class="form-label">Full Name *</label>
+                  <input type="text" id="reg-name" class="form-input" placeholder="John Doe" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Driver ID *</label>
+                  <input type="text" id="reg-driver-id" class="form-input" placeholder="DRV-001234" />
+                </div>
+              </div>
+
+              <div class="grid-2">
+                <div class="form-group">
+                  <label class="form-label">Phone Number *</label>
+                  <input type="tel" id="reg-phone" class="form-input" placeholder="+27 82 000 0000" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Vehicle Registration *</label>
+                  <input type="text" id="reg-vehicle" class="form-input" placeholder="CA 123-456" />
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Emergency PIN *</label>
+                <input type="password" id="reg-pin" class="form-input" placeholder="Set a backup PIN (min 4 chars)" />
+              </div>
+
+              <button class="btn btn-primary btn-full" onclick="goStep2()">
+                Next — Capture Face →
+              </button>
+            </div>
+
+            <!-- STEP 2: Face capture -->
+            <div id="panel-2" style="display:none">
+              <div class="card-title">Biometric Capture</div>
+              <div class="card-subtitle">FACE REGISTRATION</div>
+
+              <div class="capture-area" id="capture-box">
+                <video id="reg-video" autoplay muted playsinline></video>
+                <div class="cam-corners">
+                  <span></span><span></span><span></span><span></span>
+                </div>
+                <div class="cam-idle" id="cam-idle">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+                    <circle cx="12" cy="13" r="4"/>
+                  </svg>
+                  <span class="mono" style="font-size:0.7rem;color:var(--text-muted);letter-spacing:1px">CAMERA OFF</span>
+                </div>
+              </div>
+
+              <canvas id="reg-canvas" style="display:none"></canvas>
+              <img id="captured-img" class="captured-preview" alt="Captured face" />
+
+              <div style="display:flex;gap:10px;margin-bottom:16px;">
+                <button class="btn btn-secondary" style="flex:1" id="btn-reg-cam" onclick="toggleRegCamera()">
+                  ◉ Open Camera
+                </button>
+                <button class="btn btn-primary" style="flex:1" id="btn-capture" onclick="capturePhoto()" disabled>
+                  ◎ Capture Photo
+                </button>
+              </div>
+
+              <div style="display:flex;gap:10px;">
+                <button class="btn btn-secondary" style="flex:1" onclick="goStep1()">← Back</button>
+                <button class="btn btn-success" style="flex:1" id="btn-register" onclick="submitRegistration()" disabled>
+                  ✓ Register
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- RIGHT COLUMN -->
+        <div class="info-section">
+          <!-- Live summary -->
+          <div class="info-card">
+            <h3>Registration Summary</h3>
+            <div class="info-row">
+              <span>NAME</span>
+              <span id="sum-name">—</span>
+            </div>
+            <div class="info-row">
+              <span>DRIVER ID</span>
+              <span id="sum-id">—</span>
+            </div>
+            <div class="info-row">
+              <span>PHONE</span>
+              <span id="sum-phone">—</span>
+            </div>
+            <div class="info-row">
+              <span>VEHICLE REG</span>
+              <span id="sum-vehicle">—</span>
+            </div>
+            <div class="info-row">
+              <span>FACE DATA</span>
+              <span id="sum-face" style="color:var(--text-muted)">Pending</span>
+            </div>
+          </div>
+
+          <!-- Camera tips -->
+          <div class="info-card">
+            <h3>Camera Tips</h3>
+            <div class="tip">
+              <span class="tip-icon">◈</span>
+              <span>Ensure good lighting — avoid harsh backlight</span>
+            </div>
+            <div class="tip">
+              <span class="tip-icon">◈</span>
+              <span>Face the camera directly with a neutral expression</span>
+            </div>
+            <div class="tip">
+              <span class="tip-icon">◈</span>
+              <span>Remove sunglasses or face coverings</span>
+            </div>
+            <div class="tip">
+              <span class="tip-icon">◈</span>
+              <span>Keep your head inside the frame corners</span>
+            </div>
+          </div>
+
+          <!-- Already registered -->
+          <div class="info-card" style="text-align:center;">
+            <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:14px;">
+              Already have an account?
+            </p>
+            <a href="login.html" class="btn btn-secondary btn-full">← Back to Login</a>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- SUCCESS OVERLAY -->
+  <div class="success-overlay" id="success-overlay">
+    <div class="success-icon">✓</div>
+    <div class="success-title">Registered!</div>
+    <p style="color:var(--text-secondary);font-family:var(--font-mono);font-size:0.8rem;letter-spacing:1px;">
+      BIOMETRIC DATA SAVED SUCCESSFULLY
+    </p>
+    <a href="login.html" class="btn btn-success">Proceed to Login →</a>
+  </div>
+
+  <script src="js/utils.js"></script>
+  <script>
+    let regStream = null;
+    let regCamOn = false;
+    let capturedBlob = null;
+
+    // LIVE SUMMARY UPDATE
+    ['reg-name','reg-driver-id','reg-phone','reg-vehicle'].forEach((id, i) => {
+      const targets = ['sum-name','sum-id','sum-phone','sum-vehicle'];
+      document.getElementById(id).addEventListener('input', e => {
+        const el = document.getElementById(targets[i]);
+        el.textContent = e.target.value || '—';
+        el.style.color = e.target.value ? 'var(--text-primary)' : '';
+      });
+    });
+
+    function goStep1() {
+      document.getElementById('panel-1').style.display = 'block';
+      document.getElementById('panel-2').style.display = 'none';
+      setStep(1);
+      if (regCamOn) toggleRegCamera();
+    }
+
+    function goStep2() {
+      const name = document.getElementById('reg-name').value.trim();
+      const did  = document.getElementById('reg-driver-id').value.trim();
+      const phone = document.getElementById('reg-phone').value.trim();
+      const veh  = document.getElementById('reg-vehicle').value.trim();
+      const pin  = document.getElementById('reg-pin').value.trim();
+      if (!name || !did || !phone || !veh || !pin) {
+        showRegMsg('error', 'Please fill in all required fields.');
+        return;
+      }
+      if (pin.length < 4) {
+        showRegMsg('error', 'PIN must be at least 4 characters.');
+        return;
+      }
+      clearRegMsg();
+      document.getElementById('panel-1').style.display = 'none';
+      document.getElementById('panel-2').style.display = 'block';
+      setStep(2);
+    }
+
+    async function toggleRegCamera() {
+      const btn = document.getElementById('btn-reg-cam');
+      const video = document.getElementById('reg-video');
+      const idle = document.getElementById('cam-idle');
+      const capBtn = document.getElementById('btn-capture');
+
+      if (!regCamOn) {
+        try {
+          regStream = await startCamera(video);
+          regCamOn = true;
+          idle.style.display = 'none';
+          btn.textContent = '◎ Close Camera';
+          capBtn.disabled = false;
+        } catch (e) {}
+      } else {
+        stopCamera(regStream);
+        regCamOn = false;
+        video.srcObject = null;
+        idle.style.display = 'flex';
+        btn.textContent = '◉ Open Camera';
+        capBtn.disabled = true;
+      }
+    }
+
+    async function capturePhoto() {
+      const video = document.getElementById('reg-video');
+      const canvas = document.getElementById('reg-canvas');
+      const preview = document.getElementById('captured-img');
+      const regBtn = document.getElementById('btn-register');
+
+      capturedBlob = await captureFrame(video, canvas);
+      const url = URL.createObjectURL(capturedBlob);
+      preview.src = url;
+      preview.style.display = 'block';
+      document.getElementById('sum-face').textContent = '✓ Captured';
+      document.getElementById('sum-face').style.color = 'var(--accent-green)';
+      regBtn.disabled = false;
+      showToast('Face captured!', 'success');
+      setStep(3);
+    }
+
+    async function submitRegistration() {
+      if (!capturedBlob) {
+        showRegMsg('error', 'Please capture a face photo first.');
+        return;
+      }
+      const fd = new FormData();
+      fd.append('name',             document.getElementById('reg-name').value.trim());
+      fd.append('driver_id',        document.getElementById('reg-driver-id').value.trim());
+      fd.append('phone',            document.getElementById('reg-phone').value.trim());
+      fd.append('vehicle_reg',      document.getElementById('reg-vehicle').value.trim());
+      fd.append('pin',              document.getElementById('reg-pin').value.trim());
+      fd.append('face_image',       capturedBlob, 'face.jpg');
+
+      showRegMsg('info', 'Registering driver...');
+      try {
+        const { ok, data } = await apiPost('/register', fd);
+        if (ok) {
+          document.getElementById('success-overlay').classList.add('show');
+        } else {
+          showRegMsg('error', data.detail || 'Registration failed. Please try again.');
+        }
+      } catch (err) {
+        showRegMsg('error', 'Connection error — is the backend running?');
+      }
+    }
+
+    function setStep(n) {
+      for (let i = 1; i <= 3; i++) {
+        const el = document.getElementById(`step-${i}`);
+        el.classList.remove('active','done');
+        if (i < n) el.classList.add('done');
+        else if (i === n) el.classList.add('active');
+      }
+    }
+
+    function showRegMsg(type, text) {
+      document.getElementById('msg-reg').innerHTML =
+        `<div class="alert alert-${type === 'info' ? 'info' : type === 'success' ? 'success' : 'error'}">${text}</div>`;
+    }
+
+    function clearRegMsg() {
+      document.getElementById('msg-reg').innerHTML = '';
+    }
+  </script>
+</body>
+</html>

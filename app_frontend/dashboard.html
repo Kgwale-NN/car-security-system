@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard — Biometric Car Security</title>
+  <link rel="stylesheet" href=style.css>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <style>
+    .dash-grid {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 24px;
+      padding: 32px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .driver-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 24px;
+      text-align: center;
+    }
+
+    .driver-avatar {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      border: 2px solid var(--accent-cyan);
+      margin: 0 auto 14px;
+      background: rgba(0, 229, 255, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+      box-shadow: var(--glow-cyan);
+    }
+
+    .driver-name {
+      font-family: var(--font-display);
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .driver-id {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--text-secondary);
+      letter-spacing: 2px;
+      margin-bottom: 14px;
+    }
+
+    .engine-control {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+    }
+
+    .engine-title {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      margin-bottom: 14px;
+    }
+
+    .engine-status-display {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .engine-indicator {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      transition: all 0.4s;
+    }
+
+    .engine-indicator.on {
+      background: var(--accent-green);
+      box-shadow: var(--glow-green);
+      animation: pulse 2s infinite;
+    }
+
+    .engine-indicator.off {
+      background: var(--accent-red);
+      box-shadow: var(--glow-red);
+    }
+
+    .engine-label {
+      font-family: var(--font-display);
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+    }
+
+    .engine-label.on {
+      color: var(--accent-green);
+    }
+
+    .engine-label.off {
+      color: var(--accent-red);
+    }
+
+    .engine-toggle {
+      width: 100%;
+      padding: 12px;
+      border-radius: 6px;
+      border: none;
+      font-family: var(--font-display);
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .engine-toggle.enable {
+      background: var(--accent-green);
+      color: var(--bg-primary);
+    }
+
+    .engine-toggle.disable {
+      background: transparent;
+      border: 1px solid rgba(255, 51, 102, 0.4);
+      color: var(--accent-red);
+    }
+
+    .engine-toggle:hover {
+      opacity: 0.85;
+      transform: scale(0.99);
+    }
+
+    /* QUICK NAV */
+    .quick-nav {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .quick-nav-title {
+      padding: 14px 18px;
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .quick-nav a {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 13px 18px;
+      text-decoration: none;
+      color: var(--text-secondary);
+      font-family: var(--font-body);
+      font-size: 0.88rem;
+      border-bottom: 1px solid rgba(0, 229, 255, 0.04);
+      transition: all 0.2s;
+    }
+
+    .quick-nav a:last-child {
+      border-bottom: none;
+    }
+
+    .quick-nav a:hover {
+      background: rgba(0, 229, 255, 0.05);
+      color: var(--text-primary);
+    }
+
+    .quick-nav a:hover span:first-child {
+      color: var(--accent-cyan);
+    }
+
+    .quick-nav a span:first-child {
+      font-size: 1rem;
+      width: 20px;
+      text-align: center;
+      color: var(--text-muted);
+    }
+
+    /* ── MAIN CONTENT ── */
+    .main-content {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    /* ENGINE LOCKED BANNER */
+    .locked-banner {
+      display: none;
+      align-items: center;
+      gap: 14px;
+      padding: 16px 20px;
+      background: rgba(255, 51, 102, 0.08);
+      border: 1px solid rgba(255, 51, 102, 0.3);
+      border-radius: 8px;
+      font-family: var(--font-body);
+      font-size: 0.9rem;
+      color: var(--accent-red);
+    }
+
+    .locked-banner.show {
+      display: flex;
+    }
+
+    .locked-banner span:first-child {
+      font-size: 1.3rem;
+    }
+
+    /* RECENT ACCESS */
+    .recent-row {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+    }
+
+    /* GPS MINI */
+    .gps-mini {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .gps-mini-header {
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .gps-mini-map {
+      height: 180px;
+      background: var(--bg-secondary);
+      /* Remove the gradients */
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      position: relative;
+      z-index: 1;
+    }
+
+    .leaflet-tile {
+      filter: brightness(0.6) saturate(0.4) hue-rotate(160deg);
+    }
+
+    .gps-blip {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--accent-cyan);
+      box-shadow: var(--glow-cyan);
+      animation: pulse 1.5s infinite;
+    }
+
+    .gps-blip::after {
+      content: '';
+      position: absolute;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 1px solid rgba(0, 229, 255, 0.3);
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      animation: scannerPulse 2s infinite;
+    }
+
+    .gps-coords {
+      padding: 10px 18px;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      letter-spacing: 1px;
+      color: var(--text-secondary);
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    @media (max-width: 900px) {
+      .dash-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .stats-row {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    /* Make Leaflet zoom buttons match the dark theme */
+    .leaflet-control-zoom-in,
+    .leaflet-control-zoom-out {
+      background-color: var(--bg-card) !important;
+      color: var(--accent-cyan) !important;
+      border: 1px solid var(--border) !important;
+    }
+
+    .leaflet-control-zoom-in:hover,
+    .leaflet-control-zoom-out:hover {
+      background-color: var(--bg-card-hover) !important;
+      color: var(--accent-green) !important;
+    }
+  </style>
+</head>
+
+<body>
+  <nav class="nav">
+    <a class="nav-brand" href="dashboard.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="22" height="22">
+        <path d="M12 2L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7L12 2z" />
+      </svg>
+      BIOCAR SEC
+    </a>
+    <ul class="nav-links">
+      <li><a href="dashboard.html" class="active">Dashboard</a></li>
+      <li><a href="gps.html">GPS</a></li>
+      <li><a href="history.html">History</a></li>
+      <li><a href="manager.html">Manager</a></li>
+    </ul>
+    <div class="nav-status">
+      <div class="status-dot"></div>
+      <span id="nav-engine-label">ONLINE</span>
+    </div>
+  </nav>
+
+  <div class="page">
+    <div class="dash-grid">
+
+      <!-- SIDEBAR -->
+      <div class="sidebar">
+        <div class="driver-card">
+          <div class="driver-avatar">🧑</div>
+          <div class="driver-name" id="driver-name">Loading...</div>
+          <div class="driver-id" id="driver-id">DRV-XXXXXX</div>
+          <span class="badge badge-active">● ACTIVE SESSION</span>
+        </div>
+
+        <div class="engine-control">
+          <div class="engine-title">Engine Control</div>
+          <div class="engine-status-display">
+            <div class="engine-indicator on" id="engine-indicator"></div>
+            <div class="engine-label on" id="engine-label">ENABLED</div>
+          </div>
+          <button class="engine-toggle disable" id="engine-btn" onclick="toggleEngine()">
+            ⊗ Lock Engine
+          </button>
+        </div>
+
+        <div class="quick-nav">
+          <div class="quick-nav-title">Quick Access</div>
+          <a href="gps.html"><span>⊕</span> GPS Tracking</a>
+          <a href="history.html"><span>≡</span> Access History</a>
+          <a href="manager.html"><span>⚙</span> Manager Panel</a>
+          <a href="register.html"><span>+</span> Register Driver</a>
+          <a href="login.html" onclick="logout()"><span>⤻</span> Logout</a>
+        </div>
+      </div>
+
+      <!-- MAIN -->
+      <div class="main-content">
+
+        <div class="locked-banner" id="locked-banner">
+          <span>⊗</span>
+          <div>
+            <strong>Engine Locked</strong> — Vehicle access is currently disabled.
+            Enable the engine to allow vehicle operation.
+          </div>
+        </div>
+
+        <!-- STATS -->
+        <div class="stats-row">
+          <div class="stat-box">
+            <div class="stat-value" id="stat-total">—</div>
+            <div class="stat-label">Total Accesses</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value" id="stat-granted" style="color:var(--accent-green)">—</div>
+            <div class="stat-label">Granted</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value" id="stat-denied" style="color:var(--accent-red)">—</div>
+            <div class="stat-label">Denied</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value" id="stat-users" style="color:var(--accent-amber)">—</div>
+            <div class="stat-label">Drivers</div>
+          </div>
+        </div>
+
+        <!-- RECENT ACTIVITY + GPS side by side -->
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title">Recent Activity</div>
+            <div class="card-subtitle">LAST 5 ACCESS EVENTS</div>
+            <div class="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>User</th>
+                    <th>Method</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="recent-table">
+                  <tr>
+                    <td colspan="4" style="text-align:center;color:var(--text-muted);padding:24px">Loading...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div style="margin-top:14px;text-align:right;">
+              <a href="history.html" class="btn btn-secondary btn-sm">View All →</a>
+            </div>
+          </div>
+          <!-- GPS MINI -->
+          <div class="gps-mini">
+            <div class="gps-mini-header">
+              <div class="card-title" style="margin-bottom:0">Live GPS</div>
+              <a href="gps.html" class="btn btn-secondary btn-sm">Full View →</a>
+            </div>
+
+            <div class="gps-mini-map" id="mini-map" style="height: 180px;"></div>
+
+            <div class="gps-coords">
+              <span id="gps-lat">LAT: —</span>
+              <span id="gps-lng">LNG: —</span>
+              <span id="gps-time">UPDATED: —</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- SYSTEM STATUS -->
+        <div class="card">
+          <div class="card-title">System Status</div>
+          <div class="card-subtitle">COMPONENT HEALTH</div>
+          <div class="grid-4">
+            <div style="text-align:center;padding:16px 0;">
+              <div style="font-size:1.5rem;margin-bottom:8px">◈</div>
+              <div style="font-family:var(--font-mono);font-size:0.65rem;letter-spacing:1px;color:var(--text-muted)">
+                FACE RECOG</div>
+              <div class="badge badge-granted" style="margin-top:6px">ONLINE</div>
+            </div>
+            <div style="text-align:center;padding:16px 0;">
+              <div style="font-size:1.5rem;margin-bottom:8px">⊕</div>
+              <div style="font-family:var(--font-mono);font-size:0.65rem;letter-spacing:1px;color:var(--text-muted)">GPS
+                MODULE</div>
+              <div class="badge badge-granted" style="margin-top:6px">ONLINE</div>
+            </div>
+            <div style="text-align:center;padding:16px 0;">
+              <div style="font-size:1.5rem;margin-bottom:8px">⊘</div>
+              <div style="font-family:var(--font-mono);font-size:0.65rem;letter-spacing:1px;color:var(--text-muted)">
+                ENCRYPTION</div>
+              <div class="badge badge-granted" style="margin-top:6px">ACTIVE</div>
+            </div>
+            <div style="text-align:center;padding:16px 0;">
+              <div style="font-size:1.5rem;margin-bottom:8px">◎</div>
+              <div style="font-family:var(--font-mono);font-size:0.65rem;letter-spacing:1px;color:var(--text-muted)">API
+                SERVER</div>
+              <div class="badge badge-granted" id="api-badge" style="margin-top:6px">CHECKING</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script src="js/utils.js"></script>
+  <script>
+    let engineOn = true;
+
+    async function loadDashboard() {
+      // --- 1. SET USER IDENTITY FROM LOGIN ---
+      const activeName = localStorage.getItem('userName');
+      const activeRole = localStorage.getItem('userRole');
+      const isDemo = localStorage.getItem('isDemo') === 'true';
+
+      if (activeName) {
+        document.getElementById('driver-name').textContent = activeName;
+        // Optionally update ID based on role
+        document.getElementById('driver-id').textContent = activeRole === 'owner' ? 'OWNER-SESSION' : 'DRV-SESSION';
+      }
+
+      try {
+        // --- 2. LOAD LIVE STATS FROM BACKEND ---
+        const stats = await apiGet('/stats');
+
+        document.getElementById('stat-total').textContent = stats.total_accesses ?? '0';
+        document.getElementById('stat-granted').textContent = stats.granted ?? '0';
+        document.getElementById('stat-denied').textContent = stats.denied ?? '0';
+        document.getElementById('stat-users').textContent = stats.total_users ?? '0';
+
+        document.getElementById('api-badge').textContent = 'ONLINE';
+        document.getElementById('api-badge').className = 'badge badge-granted';
+
+        // Hide "Demo Data" warnings if the API confirms live status
+        if (stats.status === 'LIVE') {
+          // If you have a specific "Demo Data" warning element, hide it here
+          console.log("System status: LIVE");
+        }
+      } catch (err) {
+        document.getElementById('api-badge').textContent = 'OFFLINE';
+        document.getElementById('api-badge').className = 'badge badge-denied';
+
+        // Fallback demo data if backend is unreachable
+        document.getElementById('stat-total').textContent = '142';
+        document.getElementById('stat-granted').textContent = '138';
+        document.getElementById('stat-denied').textContent = '4';
+        document.getElementById('stat-users').textContent = '3';
+      }
+
+      // --- 3. ROLE-BASED ACCESS CONTROL ---
+      const settingsBtn = document.getElementById('change-hours-btn');
+      if (activeRole === 'driver' && settingsBtn) {
+        settingsBtn.style.display = 'none';
+        showToast('Driver Mode: Advanced settings locked', 'info');
+      }
+
+      // --- 4. GPS & RECENT ACTIVITY ---
+      // These coordinates can eventually be pulled from stats API as well
+      document.getElementById('gps-lat').textContent = 'LAT: -26.2041';
+      document.getElementById('gps-lng').textContent = 'LNG: 28.0473';
+      document.getElementById('gps-time').textContent = 'UPDATED: Just now';
+
+      loadRecentActivity();
+    }
+
+    async function loadRecentActivity() {
+      const tbody = document.getElementById('recent-table');
+      try {
+        const data = await apiGet('/logs?limit=5');
+        const logs = data.logs || data;
+        if (!logs.length) {
+          tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px">No activity yet</td></tr>`;
+          return;
+        }
+        tbody.innerHTML = logs.map(log => `
+          <tr>
+            <td class="mono" style="font-size:0.75rem">${timeAgo(log.timestamp)}</td>
+            <td>${log.user || '—'}</td>
+            <td class="mono" style="font-size:0.72rem;color:var(--text-secondary)">${log.method || '—'}</td>
+            <td>${statusBadge(log.status)}</td>
+          </tr>
+        `).join('');
+      } catch {
+        // Demo rows shown only if API fails
+        const demo = [
+          { timestamp: new Date(Date.now() - 60000).toISOString(), user: 'John Doe', method: 'FACE', status: 'GRANTED' },
+          { timestamp: new Date(Date.now() - 3600000).toISOString(), user: 'Unknown', method: 'FACE', status: 'DENIED' },
+          { timestamp: new Date(Date.now() - 7200000).toISOString(), user: 'John Doe', method: 'PIN', status: 'GRANTED' },
+        ];
+        tbody.innerHTML = demo.map(log => `
+          <tr>
+            <td class="mono" style="font-size:0.75rem">${timeAgo(log.timestamp)}</td>
+            <td>${log.user}</td>
+            <td class="mono" style="font-size:0.72rem;color:var(--text-secondary)">${log.method}</td>
+            <td>${statusBadge(log.status)}</td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    function toggleEngine() {
+      engineOn = !engineOn;
+      const indicator = document.getElementById('engine-indicator');
+      const label = document.getElementById('engine-label');
+      const btn = document.getElementById('engine-btn');
+      const banner = document.getElementById('locked-banner');
+      const navLabel = document.getElementById('nav-engine-label');
+
+      if (engineOn) {
+        indicator.className = 'engine-indicator on';
+        label.className = 'engine-label on';
+        label.textContent = 'ENABLED';
+        btn.className = 'engine-toggle disable';
+        btn.textContent = '⊗ Lock Engine';
+        banner.classList.remove('show');
+        navLabel.textContent = 'ONLINE';
+        showToast('Engine enabled — vehicle can operate', 'success');
+      } else {
+        indicator.className = 'engine-indicator off';
+        label.className = 'engine-label off';
+        label.textContent = 'LOCKED';
+        btn.className = 'engine-toggle enable';
+        btn.textContent = '✓ Enable Engine';
+        banner.classList.add('show');
+        navLabel.textContent = 'LOCKED';
+        showToast('Engine locked — vehicle is secured', 'info');
+      }
+    }
+
+    function logout() {
+      if (confirm('Log out of the current session?')) {
+        localStorage.clear(); // Clear session data
+        window.location.href = 'login.html';
+      }
+    }
+
+    function initMiniMap() {
+      const lat = -26.2041;
+      const lng = 28.0473;
+
+      const map = L.map('mini-map', {
+        center: [lat, lng],
+        zoom: 14,
+        zoomControl: true,
+        dragging: true,
+        scrollWheelZoom: true
+      });
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap'
+      }).addTo(map);
+
+      const mapEl = document.getElementById('mini-map');
+      if (mapEl) {
+        mapEl.style.filter = "brightness(0.6) saturate(0.4) hue-rotate(160deg)";
+      }
+
+      L.marker([lat, lng]).addTo(map);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadDashboard();
+      initMiniMap();
+    });
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login — Biometric Car Security</title>
+  <link rel="stylesheet" href=style.css>
+  <style>
+    .login-wrap {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .login-box {
+      width: 100%;
+      max-width: 900px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 8px 64px rgba(0, 0, 0, 0.7), var(--glow-cyan);
+      animation: fadeInUp 0.6s ease;
+    }
+
+    /* LEFT PANEL — branding */
+    .login-brand {
+      background: linear-gradient(135deg, #020a12 0%, #041222 100%);
+      padding: 48px 40px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-start;
+      border-right: 1px solid var(--border);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .login-brand::before {
+      content: '';
+      position: absolute;
+      top: -60px;
+      right: -60px;
+      width: 240px;
+      height: 240px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(0, 229, 255, 0.08) 0%, transparent 70%);
+    }
+
+    .login-brand::after {
+      content: '';
+      position: absolute;
+      bottom: -40px;
+      left: -40px;
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(0, 255, 136, 0.05) 0%, transparent 70%);
+    }
+
+    .brand-logo {
+      width: 64px;
+      height: 64px;
+      border: 2px solid var(--accent-cyan);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 28px;
+      box-shadow: var(--glow-cyan);
+      position: relative;
+      z-index: 1;
+    }
+
+    .brand-logo svg {
+      width: 36px;
+      height: 36px;
+      color: var(--accent-cyan);
+    }
+
+    .brand-title {
+      font-family: var(--font-display);
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--text-primary);
+      line-height: 1.1;
+      margin-bottom: 12px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .brand-title span {
+      color: var(--accent-cyan);
+    }
+
+    .brand-desc {
+      font-family: var(--font-body);
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin-bottom: 40px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .brand-features {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .brand-features li {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      letter-spacing: 1px;
+      color: var(--text-secondary);
+    }
+
+    .brand-features li::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent-green);
+      box-shadow: var(--glow-green);
+      flex-shrink: 0;
+    }
+
+    /* RIGHT PANEL — form */
+    .login-form-panel {
+      background: var(--bg-card);
+      padding: 48px 40px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .login-form-panel h2 {
+      font-family: var(--font-display);
+      font-size: 1.4rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .login-form-panel p {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      margin-bottom: 32px;
+    }
+
+    /* TABS */
+    .auth-tabs {
+      display: flex;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      margin-bottom: 28px;
+    }
+
+    .auth-tab {
+      flex: 1;
+      padding: 10px;
+      background: transparent;
+      border: none;
+      font-family: var(--font-display);
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .auth-tab.active {
+      background: rgba(0, 229, 255, 0.1);
+      color: var(--accent-cyan);
+    }
+
+    /* CAMERA SECTION */
+    .camera-box {
+      width: 100%;
+      aspect-ratio: 4/3;
+      background: #000;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      position: relative;
+      margin-bottom: 16px;
+    }
+
+    .camera-box video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .camera-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: var(--text-muted);
+    }
+
+    .camera-overlay svg {
+      width: 40px;
+      height: 40px;
+      opacity: 0.4;
+    }
+
+    .camera-corner {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border-color: var(--accent-cyan);
+      border-style: solid;
+      opacity: 0.7;
+    }
+
+    .camera-corner.tl {
+      top: 10px;
+      left: 10px;
+      border-width: 2px 0 0 2px;
+    }
+
+    .camera-corner.tr {
+      top: 10px;
+      right: 10px;
+      border-width: 2px 2px 0 0;
+    }
+
+    .camera-corner.bl {
+      bottom: 10px;
+      left: 10px;
+      border-width: 0 0 2px 2px;
+    }
+
+    .camera-corner.br {
+      bottom: 10px;
+      right: 10px;
+      border-width: 0 2px 2px 0;
+    }
+
+    .scan-line {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent-cyan), transparent);
+      display: none;
+    }
+
+    .scanning .scan-line {
+      display: block;
+      animation: scan 1.8s linear infinite;
+    }
+
+    .camera-status {
+      position: absolute;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      letter-spacing: 2px;
+      color: var(--accent-cyan);
+      background: rgba(0, 0, 0, 0.7);
+      padding: 4px 12px;
+      border-radius: 20px;
+      display: none;
+    }
+
+    .scanning .camera-status {
+      display: block;
+    }
+
+    .face-tab-content,
+    .pin-tab-content {
+      display: none;
+    }
+
+    .face-tab-content.active,
+    .pin-tab-content.active {
+      display: block;
+    }
+
+    #msg-area {
+      margin-bottom: 0;
+    }
+
+    .register-link {
+      text-align: center;
+      margin-top: 20px;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+
+    .register-link a {
+      color: var(--accent-cyan);
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .register-link a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="login-wrap">
+    <div class="login-box">
+
+      <!-- LEFT: BRAND -->
+      <div class="login-brand">
+        <div class="brand-logo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M12 2L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7L12 2z" />
+            <circle cx="12" cy="11" r="3" />
+            <path d="M12 14v3M9 11H6M18 11h-3" />
+          </svg>
+        </div>
+        <div class="brand-title">
+          BIOMETRIC<br><span>CAR SECURE</span>
+        </div>
+        <p class="brand-desc">
+          Next-generation vehicle protection powered by facial recognition and advanced biometric authentication.
+        </p>
+        <ul class="brand-features">
+          <li>Real-time face recognition</li>
+          <li>Emergency PIN backup system</li>
+          <li>Live GPS tracking</li>
+          <li>Encrypted data storage</li>
+          <li>Access history logging</li>
+        </ul>
+      </div>
+
+      <!-- RIGHT: FORM -->
+      <div class="login-form-panel">
+        <h2>Authentication</h2>
+        <p>Verify your identity to access the vehicle system</p>
+
+        <div id="msg-area"></div>
+
+        <div class="auth-tabs">
+          <button class="auth-tab active" onclick="switchTab('face')">
+            ◈ Face Scan
+          </button>
+          <button class="auth-tab" onclick="switchTab('pin')">
+            ⌗ PIN Backup
+          </button>
+        </div>
+
+        <!-- FACE TAB -->
+        <div id="face-tab" class="face-tab-content active">
+          <div class="camera-box" id="camera-box">
+            <video id="video" autoplay muted playsinline></video>
+            <div class="camera-corner tl"></div>
+            <div class="camera-corner tr"></div>
+            <div class="camera-corner bl"></div>
+            <div class="camera-corner br"></div>
+            <div class="scan-line"></div>
+            <div class="camera-status mono">SCANNING...</div>
+            <div class="camera-overlay" id="cam-placeholder">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="12" cy="8" r="4" />
+                <path d="M20 20c0-4.4-3.6-8-8-8s-8 3.6-8 8" />
+              </svg>
+              <span class="mono" style="font-size:0.7rem;letter-spacing:1px;color:var(--text-muted)">CAMERA OFF</span>
+            </div>
+          </div>
+          <canvas id="canvas" style="display:none"></canvas>
+          <div style="display:flex;gap:10px;">
+            <button class="btn btn-secondary" style="flex:1" id="btn-camera" onclick="toggleCamera()">
+              ◉ Start Camera
+            </button>
+            <button class="btn btn-primary" style="flex:1" id="btn-verify" onclick="verifyFace()" disabled>
+              ✓ Verify Face
+            </button>
+          </div>
+        </div>
+
+        <!-- PIN TAB -->
+        <div id="pin-tab" class="pin-tab-content">
+          <div class="form-group">
+            <label class="form-label">Emergency PIN</label>
+            <input type="password" id="pin-input" class="form-input" placeholder="Enter your PIN" maxlength="10" />
+          </div>
+          <button class="btn btn-primary btn-full" onclick="verifyPin()">
+            ⌗ Verify PIN
+          </button>
+        </div>
+
+        <div class="register-link">
+          New driver? <a href="register.html">Register here</a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="js/utils.js"></script>
+  <script>
+    let cameraStream = null;
+    let cameraOn = false;
+
+    function switchTab(tab) {
+      document.querySelectorAll('.auth-tab').forEach((t, i) => {
+        t.classList.toggle('active', (i === 0 && tab === 'face') || (i === 1 && tab === 'pin'));
+      });
+      document.getElementById('face-tab').classList.toggle('active', tab === 'face');
+      document.getElementById('pin-tab').classList.toggle('active', tab === 'pin');
+      clearMsg();
+    }
+
+    async function toggleCamera() {
+      const btn = document.getElementById('btn-camera');
+      const verifyBtn = document.getElementById('btn-verify');
+      const video = document.getElementById('video');
+      const placeholder = document.getElementById('cam-placeholder');
+      const box = document.getElementById('camera-box');
+
+      if (!cameraOn) {
+        try {
+          cameraStream = await startCamera(video);
+          cameraOn = true;
+          placeholder.style.display = 'none';
+          btn.textContent = '◎ Stop Camera';
+          verifyBtn.disabled = false;
+        } catch (e) { /* startCamera shows toast */ }
+      } else {
+        stopCamera(cameraStream);
+        cameraOn = false;
+        video.srcObject = null;
+        placeholder.style.display = 'flex';
+        btn.textContent = '◉ Start Camera';
+        verifyBtn.disabled = true;
+        box.classList.remove('scanning');
+      }
+    }
+
+    async function verifyFace() {
+      const box = document.getElementById('camera-box');
+      const video = document.getElementById('video');
+      const canvas = document.getElementById('canvas');
+      box.classList.add('scanning');
+      showMsg('info', 'Scanning face... please look at the camera');
+      try {
+        const blob = await captureFrame(video, canvas);
+        const fd = new FormData();
+        fd.append('face_image', blob, 'face.jpg');
+        const { ok, data } = await apiPost('/verify-face', fd);
+        box.classList.remove('scanning');
+
+        if (ok && data.status === 'GRANTED') {
+          // Store real session data to hide demo mode and show user name
+          localStorage.setItem('userName', data.user || 'Authorized User');
+          localStorage.setItem('userRole', data.role || 'driver');
+          localStorage.setItem('isDemo', 'false');
+
+          showMsg('success', `✓ Access Granted — Welcome, ${data.user || 'Driver'}!`);
+          showToast('Authentication successful', 'success');
+          setTimeout(() => window.location.href = 'dashboard.html', 1500);
+        } else {
+          showMsg('error', '✕ Face not recognised. Try again or use PIN backup.');
+          showToast('Access denied', 'error');
+        }
+      } catch (err) {
+        box.classList.remove('scanning');
+        showMsg('error', 'Connection error — is the backend running?');
+      }
+    }
+
+    async function verifyPin() {
+      const pin = document.getElementById('pin-input').value.trim();
+      if (!pin) { showMsg('error', 'Please enter your PIN.'); return; }
+      showMsg('info', 'Verifying PIN...');
+      try {
+        const fd = new FormData();
+        fd.append('username', ''); // Can be extended if you add a username field
+        fd.append('password', pin);
+
+        const { ok, data } = await apiPost('/login', fd);
+
+        if (ok && data.status === 'success') {
+          localStorage.setItem('userName', data.user);
+          localStorage.setItem('userRole', data.role);
+          localStorage.setItem('isDemo', 'false');
+
+          showMsg('success', `✓ Verified — Welcome ${data.user}!`);
+          showToast('Login successful', 'success');
+
+          setTimeout(() => window.location.href = 'dashboard.html', 1000);
+        } else {
+          showMsg('error', '✕ Incorrect PIN. Access Denied.');
+          showToast('Incorrect PIN', 'error');
+        }
+      } catch (err) {
+        showMsg('error', 'Connection error — is the backend running?');
+      }
+    }
+
+    function showMsg(type, text) {
+      const el = document.getElementById('msg-area');
+      el.innerHTML = `<div class="alert alert-${type === 'info' ? 'info' : type === 'success' ? 'success' : 'error'}">${text}</div>`;
+    }
+
+    function clearMsg() {
+      document.getElementById('msg-area').innerHTML = '';
+    }
+
+    // Enter key for PIN
+    document.addEventListener('DOMContentLoaded', () => {
+      // Clear old session data on fresh login
+      localStorage.clear();
+
+      document.getElementById('pin-input').addEventListener('keyup', e => {
+        if (e.key === 'Enter') verifyPin();
+      });
+    });
+  </script>
+</body>
+
+</html>

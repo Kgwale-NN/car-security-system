@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ignition Verification — Biocar Sec</title>
+    <link rel="stylesheet" href=style.css>
+    <style>
+        .verify-container {
+            max-width: 600px;
+            margin: 40px auto;
+            text-align: center;
+        }
+
+        .match-gauge {
+            width: 100%;
+            height: 20px;
+            background: var(--bg-secondary);
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 20px 0;
+            border: 1px solid var(--border);
+        }
+
+        .match-fill {
+            height: 100%;
+            width: 0%;
+            background: var(--accent-cyan);
+            box-shadow: var(--glow-cyan);
+            transition: width 0.3s;
+        }
+
+        .status-text {
+            font-family: var(--font-mono);
+            font-size: 1.2rem;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="nav">
+        <a class="nav-brand" href="dashboard.html">BIOCAR SEC</a>
+    </nav>
+    <div class="page">
+        <div class="verify-container">
+            <h1 class="section-title">Engine <span>Ignition</span></h1>
+            <p class="card-subtitle">BIOMETRIC AUTHENTICATION REQUIRED</p>
+
+            <div class="capture-area" id="verify-box">
+                <video id="video" autoplay muted playsinline></video>
+                <div class="scan-line"></div>
+            </div>
+
+            <div class="match-gauge">
+                <div class="match-fill" id="match-fill"></div>
+            </div>
+            <div class="status-text" id="status-display">WAITING FOR SCAN...</div>
+
+            <div class="grid-2" style="margin-top: 20px;">
+                <button class="btn btn-primary" onclick="startIgnition()">START SCAN</button>
+                <button class="btn btn-secondary" onclick="window.location.href='login.html'">EMERGENCY PIN</button>
+            </div>
+        </div>
+    </div>
+    <script src="js/utils.js"></script>
+    <script>
+        async function startIgnition() {
+            const fill = document.getElementById('match-fill');
+            const status = document.getElementById('status-display');
+            status.innerText = "ANALYSING FACE...";
+            // This would call your Python verify_face() via API
+            let mockMatch = 0;
+            let interval = setInterval(() => {
+                mockMatch += 5;
+                fill.style.width = mockMatch + "%";
+                if (mockMatch >= 84) { // Based on your successful log [cite: 209]
+                    clearInterval(interval);
+                    status.style.color = "var(--accent-green)";
+                    status.innerText = "MATCH CONFIRMED: 84.1% - ENGINE STARTING";
+                    setTimeout(() => window.location.href = 'dashboard.html', 1500);
+                }
+            }, 100);
+        }
+    </script>
+</body>
+
+</html>
