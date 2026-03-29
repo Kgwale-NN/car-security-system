@@ -496,29 +496,28 @@
     async function verifyPin() {
       const pin = document.getElementById('pin-input').value.trim();
       if (!pin) { showMsg('error', 'Please enter your PIN.'); return; }
-      showMsg('info', 'Verifying PIN...');
+
+      showMsg('info', 'Connecting to vehicle...');
       try {
         const fd = new FormData();
-        fd.append('username', ''); // Can be extended if you add a username field
+        // We only send the 'password' field now
         fd.append('password', pin);
 
         const { ok, data } = await apiPost('/login', fd);
 
         if (ok && data.status === 'success') {
+          // Success! Save the name for the Dashboard
           localStorage.setItem('userName', data.user);
           localStorage.setItem('userRole', data.role);
           localStorage.setItem('isDemo', 'false');
 
-          showMsg('success', `✓ Verified — Welcome ${data.user}!`);
-          showToast('Login successful', 'success');
-
+          showMsg('success', `✓ Verified: ${data.user}`);
           setTimeout(() => window.location.href = 'dashboard.html', 1000);
         } else {
-          showMsg('error', '✕ Incorrect PIN. Access Denied.');
-          showToast('Incorrect PIN', 'error');
+          showMsg('error', '✕ Invalid PIN Access Denied.');
         }
       } catch (err) {
-        showMsg('error', 'Connection error — is the backend running?');
+        showMsg('error', 'System Offline — check Uvicorn.');
       }
     }
 

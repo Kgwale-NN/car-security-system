@@ -41,20 +41,28 @@ def get_driver_by_username(db, username):
     conn.close()
     return driver if driver else (None, None, None)
 
+# -- login pin verification (for login.html) ---
 @app.post("/api/login")
-async def login(username: str = Form(...), password: str = Form(...)):
-    owner_user, stored_hash, full_name = db.get_owner_credentials()
+async def login(password: str = Form(...)): 
     input_hash = hashlib.sha256(password.encode()).hexdigest()
 
-    if username == owner_user and input_hash == stored_hash:
+    # 1. Check if it's the Owner's PIN
+    owner_user, stored_hash, full_name = db.get_owner_credentials()
+    if input_hash == stored_hash:
         return {"status": "success", "user": full_name, "role": "owner"}
 
-    # Check for drivers if not owner
-    driver_user, driver_hash, driver_full_name = get_driver_by_username(db, username)
-    if driver_user and input_hash == driver_hash:
-        return {"status": "success", "user": driver_full_name, "role": "driver"}
+    # 2. Check if it's a Driver's PIN
+    conn = sqlite3.connect(db.db_file)
+    cursor = conn.cursor()
+    # Find the first user who has this specific password hash
+    cursor.execute("SELECT full_name FROM users WHERE password_hash = ? AND role = 'driver'", (input_hash,))
+    driver = cursor.fetchone()
+    conn.close()
+
+    if driver:
+        return {"status": "success", "user": driver, "role": "driver"}
         
-    return {"status": "error", "message": "Invalid credentials"}
+    return {"status": "error", "message": "Invalid PIN"}
 
 # --- 2. FACE VERIFICATION (For verify.html) ---
 def get_recognition_threshold(db):
