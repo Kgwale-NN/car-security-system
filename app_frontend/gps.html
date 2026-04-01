@@ -5,261 +5,43 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>GPS Tracking — Biometric Car Security</title>
-  <link rel="stylesheet" href=style.css>
-  <!-- Leaflet -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <link rel="stylesheet" href="style.css">
+  <!-- LeafletJS CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <style>
     .gps-layout {
+      padding: 32px;
+      max-width: 1400px;
+      margin: 0 auto;
       display: grid;
       grid-template-columns: 320px 1fr;
-      height: calc(100vh - 60px);
-      overflow: hidden;
-    }
-
-    /* SIDEBAR */
-    .gps-sidebar {
-      background: var(--bg-card);
-      border-right: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-
-    .gps-sidebar-header {
-      padding: 20px 20px 0;
-      flex-shrink: 0;
-    }
-
-    .gps-sidebar-header h2 {
-      font-family: var(--font-display);
-      font-size: 1.2rem;
-      font-weight: 700;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      color: var(--text-primary);
-      margin-bottom: 4px;
-    }
-
-    .gps-sidebar-header p {
-      font-family: var(--font-mono);
-      font-size: 0.68rem;
-      letter-spacing: 1.5px;
-      color: var(--text-muted);
-      margin-bottom: 16px;
-    }
-
-    .current-location-card {
-      background: rgba(0, 229, 255, 0.05);
-      border: 1px solid var(--border-active);
-      border-radius: 8px;
-      padding: 16px;
-      margin: 0 20px 16px;
-    }
-
-    .loc-title {
-      font-family: var(--font-mono);
-      font-size: 0.65rem;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      color: var(--text-secondary);
-      margin-bottom: 10px;
-    }
-
-    .loc-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 5px 0;
-      border-bottom: 1px solid rgba(0, 229, 255, 0.07);
-    }
-
-    .loc-row:last-child {
-      border-bottom: none;
-    }
-
-    .loc-row span:first-child {
-      font-family: var(--font-mono);
-      font-size: 0.68rem;
-      color: var(--text-muted);
-    }
-
-    .loc-row span:last-child {
-      font-family: var(--font-mono);
-      font-size: 0.78rem;
-      color: var(--accent-cyan);
-    }
-
-    .gps-controls {
-      display: flex;
-      gap: 8px;
-      padding: 0 20px 16px;
-    }
-
-    /* HISTORY LIST */
-    .history-label {
-      padding: 0 20px 8px;
-      font-family: var(--font-mono);
-      font-size: 0.65rem;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      color: var(--text-muted);
-      flex-shrink: 0;
-    }
-
-    .gps-history-list {
-      flex: 1;
-      overflow-y: auto;
-      padding: 0 20px 20px;
-    }
-
-    .gps-hist-item {
-      display: flex;
-      align-items: flex-start;
-      gap: 12px;
-      padding: 10px 0;
-      border-bottom: 1px solid rgba(0, 229, 255, 0.05);
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-
-    .gps-hist-item:hover {
-      background: rgba(0, 229, 255, 0.03);
-      border-radius: 4px;
-    }
-
-    .gps-hist-item:last-child {
-      border-bottom: none;
-    }
-
-    .hist-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--accent-cyan);
-      flex-shrink: 0;
-      margin-top: 5px;
-      box-shadow: var(--glow-cyan);
-    }
-
-    .hist-dot.old {
-      background: var(--text-muted);
-      box-shadow: none;
-    }
-
-    .hist-info {
-      flex: 1;
-    }
-
-    .hist-coords {
-      font-family: var(--font-mono);
-      font-size: 0.72rem;
-      color: var(--text-primary);
-      margin-bottom: 3px;
-    }
-
-    .hist-time {
-      font-family: var(--font-mono);
-      font-size: 0.65rem;
-      color: var(--text-muted);
-    }
-
-    /* MAP */
-    .gps-map-area {
-      position: relative;
-      flex: 1;
+      gap: 24px;
     }
 
     #map {
+      height: 600px;
       width: 100%;
-      height: 100%;
-    }
-
-    /* Leaflet dark override */
-    .leaflet-tile {
-      filter: brightness(0.6) saturate(0.4) hue-rotate(160deg);
-    }
-
-    .leaflet-container {
-      background: var(--bg-primary);
-    }
-
-    .map-overlay {
-      position: absolute;
-      top: 16px;
-      right: 16px;
-      z-index: 1000;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .map-btn {
       background: var(--bg-card);
       border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    /* Make Leaflet popups match our theme */
+    .leaflet-popup-content-wrapper,
+    .leaflet-popup-tip {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      box-shadow: 0 3px 14px rgba(0, 0, 0, 0.4);
       border-radius: 6px;
-      padding: 10px 14px;
-      font-family: var(--font-mono);
-      font-size: 0.7rem;
-      letter-spacing: 1px;
-      text-transform: uppercase;
+    }
+
+    .leaflet-popup-content {
+      font-family: var(--font-body);
+    }
+
+    .leaflet-control-attribution a {
       color: var(--accent-cyan);
-      cursor: pointer;
-      transition: all 0.2s;
-      white-space: nowrap;
-    }
-
-    .map-btn:hover {
-      background: rgba(0, 229, 255, 0.1);
-      border-color: var(--border-active);
-    }
-
-    .map-info-bar {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: rgba(5, 10, 15, 0.85);
-      backdrop-filter: blur(8px);
-      border-top: 1px solid var(--border);
-      padding: 10px 20px;
-      display: flex;
-      gap: 32px;
-      z-index: 1000;
-    }
-
-    .map-info-item {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-
-    .map-info-item span:first-child {
-      font-family: var(--font-mono);
-      font-size: 0.6rem;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      color: var(--text-muted);
-    }
-
-    .map-info-item span:last-child {
-      font-family: var(--font-mono);
-      font-size: 0.82rem;
-      color: var(--accent-cyan);
-    }
-
-    @media (max-width: 768px) {
-      .gps-layout {
-        grid-template-columns: 1fr;
-        grid-template-rows: auto 1fr;
-        height: auto;
-      }
-
-      .gps-sidebar {
-        max-height: 320px;
-      }
-
-      .gps-map-area {
-        min-height: 400px;
-      }
     }
   </style>
 </head>
@@ -280,248 +62,394 @@
     </ul>
     <div class="nav-status">
       <div class="status-dot"></div>
-      <span>TRACKING</span>
+      <span>ONLINE</span>
     </div>
   </nav>
 
-  <div class="page" style="padding-top:60px">
+  <div class="page">
     <div class="gps-layout">
-
-      <!-- SIDEBAR -->
-      <div class="gps-sidebar">
-        <div class="gps-sidebar-header">
-          <h2>GPS Tracking</h2>
-          <p>LIVE VEHICLE LOCATION</p>
+      <!-- Sidebar -->
+      <div>
+        <div class="section-header" style="margin-bottom:20px;">
+          <h1 class="section-title">GPS <span>Tracking</span></h1>
         </div>
 
-        <div class="current-location-card">
-          <div class="loc-title">Current Position</div>
-          <div class="loc-row">
-            <span>LATITUDE</span>
-            <span id="cur-lat">—</span>
+        <div class="card" style="position:sticky; top:80px;">
+
+          <div class="card-title">Live Status</div>
+
+          <div class="card-subtitle">REAL-TIME DATA</div>
+
+
+
+          <div id="gps-status-card">
+
+            <div class="info-row">
+
+              <span>Permission</span>
+
+              <span id="gps-permission" class="badge">UNKNOWN</span>
+
+            </div>
+
+            <div class="info-row">
+
+              <span>Status</span>
+
+              <span id="gps-status" class="badge">INITIALIZING</span>
+
+            </div>
+
+            <div class="info-row">
+
+              <span>Latitude</span>
+
+              <span id="gps-lat">—</span>
+
+            </div>
+
+            <div class="info-row">
+
+              <span>Longitude</span>
+
+              <span id="gps-lon">—</span>
+
+            </div>
+
+            <div class="info-row">
+
+              <span>Last Update</span>
+
+              <span id="gps-time">—</span>
+
+            </div>
+
+            <div class="info-row">
+
+              <span>History Points</span>
+
+              <span id="gps-history-count">0</span>
+
+            </div>
+
           </div>
-          <div class="loc-row">
-            <span>LONGITUDE</span>
-            <span id="cur-lng">—</span>
+
+          <div style="margin-top:16px;">
+
+            <button id="recenter-btn" class="btn btn-primary btn-sm" disabled>Recenter Map</button>
+
           </div>
-          <div class="loc-row">
-            <span>SPEED</span>
-            <span id="cur-speed">0 km/h</span>
-          </div>
-          <div class="loc-row">
-            <span>UPDATED</span>
-            <span id="cur-time">—</span>
-          </div>
+
         </div>
 
-        <div class="gps-controls">
-          <button class="btn btn-primary" style="flex:1;font-size:0.75rem;padding:10px" onclick="centerMap()">
-            ⊕ Centre
-          </button>
-          <button class="btn btn-secondary" style="flex:1;font-size:0.75rem;padding:10px" onclick="loadGpsHistory()">
-            ↺ Refresh
-          </button>
+        <div class="card" style="margin-top: 16px; position:sticky; top: 280px; background-color: #1a090d;">
+
+          <div class="card-title" style="color: var(--accent-red);">Important Note</div>
+
+          <p style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.5;">
+
+            For live tracking to work, your browser will ask for permission to access your location.
+
+            <br><br>
+
+            <strong>You must click "Allow"</strong>.
+
+            <br><br>
+
+            If you have previously blocked it, you may need to reset the permission in your browser's site settings
+            (look for a lock icon 🔒 in the address bar).
+
+          </p>
+
         </div>
 
-        <div class="history-label">Location History</div>
-        <div class="gps-history-list" id="gps-history-list">
-          <div
-            style="text-align:center;color:var(--text-muted);padding:20px;font-family:var(--font-mono);font-size:0.72rem">
-            Loading...
-          </div>
-        </div>
       </div>
 
-      <!-- MAP -->
-      <div class="gps-map-area">
+
+
+      <!-- Map -->
+
+      <div>
+
         <div id="map"></div>
 
-        <div class="map-overlay">
-          <button class="map-btn" onclick="toggleTrail()">⊞ Toggle Trail</button>
-          <button class="map-btn" onclick="toggleSatellite()">◈ Map Style</button>
-        </div>
-
-        <div class="map-info-bar">
-          <div class="map-info-item">
-            <span>Accuracy</span>
-            <span id="bar-accuracy">± 5m</span>
-          </div>
-          <div class="map-info-item">
-            <span>Distance Today</span>
-            <span id="bar-distance">—</span>
-          </div>
-          <div class="map-info-item">
-            <span>Points Logged</span>
-            <span id="bar-points">—</span>
-          </div>
-          <div class="map-info-item">
-            <span>Status</span>
-            <span style="color:var(--accent-green)">TRACKING</span>
-          </div>
-        </div>
       </div>
 
     </div>
+
   </div>
 
+
+
+  <!-- LeafletJS -->
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
   <script src="js/utils.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
   <script>
-    // Default: Johannesburg
-    const DEFAULT_LAT = -26.2041;
-    const DEFAULT_LNG = 28.0473;
 
-    let map, marker, trailLine;
-    let gpsPoints = [];
-    let showTrail = true;
-    let currentTile = 'osm';
+    const permissionEl = document.getElementById('gps-permission');
 
-    const tiles = {
-      osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors', maxZoom: 19
-      }),
-      topo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenTopoMap', maxZoom: 17
-      })
-    };
+    const statusEl = document.getElementById('gps-status');
 
-    function initMap() {
-      map = L.map('map', {
-        center: [DEFAULT_LAT, DEFAULT_LNG],
-        zoom: 13,
-        zoomControl: false
+    const latEl = document.getElementById('gps-lat');
+
+    const lonEl = document.getElementById('gps-lon');
+
+    const timeEl = document.getElementById('gps-time');
+
+    const historyCountEl = document.getElementById('gps-history-count');
+
+    const recenterBtn = document.getElementById('recenter-btn');
+
+
+
+    let map = null;
+
+    let currentPosMarker = null;
+
+    let lastPosition = null;
+
+
+
+    // 1. Initialize Map
+
+    function initMap(lat, lon, isDefault = false) {
+
+      statusEl.textContent = 'MAP READY';
+
+      statusEl.className = 'badge badge-active';
+
+
+
+      map = L.map('map').setView([lat, lon], isDefault ? 11 : 15);
+
+
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+
+        maxZoom: 19,
+
+        attribution: '© <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+
+      }).addTo(map);
+
+
+
+      if (isDefault) {
+
+        L.marker([lat, lon]).addTo(map)
+
+          .bindPopup('<b>Default Location</b><br>Showing Johannesburg because location access was denied.')
+
+          .openPopup();
+
+        return;
+
+      }
+
+
+
+      // Add a custom marker for current position
+
+      const carIcon = L.icon({
+
+        iconUrl: 'https://cdn-icons-png.flaticon.com/512/3202/3202926.png', // A simple car icon
+
+        iconSize: [38, 38],
+
+        iconAnchor: [19, 38],
+
+        popupAnchor: [0, -38]
+
       });
 
-      tiles.osm.addTo(map);
-      L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-      // Custom marker
-      const icon = L.divIcon({
-        className: '',
-        html: `<div style="
-          width:16px;height:16px;border-radius:50%;
-          background:var(--accent-cyan);
-          box-shadow:0 0 12px rgba(0,229,255,0.8);
-          border:2px solid white;
-        "></div>`,
-        iconSize: [16, 16],
-        iconAnchor: [8, 8]
-      });
 
-      marker = L.marker([DEFAULT_LAT, DEFAULT_LNG], { icon }).addTo(map);
-      marker.bindPopup('<b style="color:#00e5ff">Vehicle Position</b><br>Last known location');
+      currentPosMarker = L.marker([lat, lon], { icon: carIcon }).addTo(map)
 
-      trailLine = L.polyline([], { color: '#00e5ff', weight: 2, opacity: 0.5, dashArray: '4' }).addTo(map);
+        .bindPopup('<b>Current Position</b><br>Your vehicle is here.')
 
-      updateLocationDisplay(DEFAULT_LAT, DEFAULT_LNG);
-      loadGpsHistory();
+        .openPopup();
+
+
+
+      recenterBtn.disabled = false;
+
+      recenterBtn.onclick = () => map.setView([lat, lon], 15);
+
     }
 
-    async function loadGpsHistory() {
-      const list = document.getElementById('gps-history-list');
-      try {
-        const data = await apiGet('/gps-history');
-        const points = data.history || data;
 
-        if (points && points.length) {
-          gpsPoints = points.map(p => [p.lat || p.latitude, p.lng || p.longitude]);
-          renderHistory(points);
-          updateTrail();
-          if (gpsPoints.length) {
-            const last = gpsPoints[gpsPoints.length - 1];
-            marker.setLatLng(last);
-            map.setView(last, 14);
-            updateLocationDisplay(last[0], last[1]);
+
+    // 2. Get and Update Current Location
+
+    function updateLocation() {
+
+      statusEl.textContent = 'GETTING LOCATION...';
+
+      statusEl.className = 'badge badge-warning';
+
+      permissionEl.textContent = 'REQUESTING PERMISSION...';
+
+      permissionEl.className = 'badge badge-warning';
+
+
+
+      navigator.geolocation.getCurrentPosition(
+
+        (position) => {
+
+          const { latitude, longitude } = position.coords;
+
+          lastPosition = { latitude, longitude };
+
+
+
+          permissionEl.textContent = 'GRANTED';
+
+          permissionEl.className = 'badge badge-granted';
+
+          statusEl.textContent = 'LOCATION FOUND';
+
+          statusEl.className = 'badge badge-granted';
+
+          latEl.textContent = latitude.toFixed(5);
+
+          lonEl.textContent = longitude.toFixed(5);
+
+          timeEl.textContent = new Date().toLocaleTimeString();
+
+
+
+          if (!map) {
+
+            initMap(latitude, longitude);
+
+          } else {
+
+            const newLatLng = new L.LatLng(latitude, longitude);
+
+            if (map.getBounds().contains(newLatLng)) {
+
+              currentPosMarker.setLatLng(newLatLng);
+
+            } else {
+
+              map.setView(newLatLng);
+
+              currentPosMarker.setLatLng(newLatLng);
+
+            }
+
           }
-          document.getElementById('bar-points').textContent = gpsPoints.length;
-        } else {
-          renderDemoHistory();
+
+
+
+          // Log the position to the backend
+
+          logPositionToBackend(latitude, longitude);
+
+
+
+          // Fetch and draw history after getting first location
+
+          if (!historyLoaded) fetchAndDrawHistory();
+
+        },
+
+        () => {
+
+          permissionEl.textContent = 'PERMISSION DENIED';
+
+          permissionEl.className = 'badge badge-denied';
+
+          statusEl.textContent = 'USING FALLBACK';
+
+          statusEl.className = 'badge badge-error';
+
+          showToast('Location access denied. Showing default location.', 'error');
+
+          // If permission is denied, use a default location (Johannesburg)
+
+          if (!map) initMap(-26.2041, 28.0473, true);
+
         }
-      } catch {
-        renderDemoHistory();
+
+      );
+
+    }
+
+
+
+    let historyLoaded = false;
+
+    // 3. Fetch and Draw Route History
+
+    async function fetchAndDrawHistory() {
+
+      try {
+
+        const data = await apiGet('/gps-history');
+
+        if (data.history && data.history.length > 0) {
+
+          const latlngs = data.history.map(p => [p.latitude, p.longitude]);
+
+
+
+          const polyline = L.polyline(latlngs, { color: 'var(--accent-cyan)', weight: 3 }).addTo(map);
+
+
+
+          // zoom the map to the polyline if it's the first load
+
+          if (map && !currentPosMarker) map.fitBounds(polyline.getBounds());
+
+
+
+          historyCountEl.textContent = data.history.length;
+
+          historyLoaded = true;
+
+        } else {
+
+          historyCountEl.textContent = '0';
+
+        }
+
+      } catch (error) {
+
+        showToast('Could not load GPS history.', 'error');
+
+      }
+
+    }
+
+    // 4. Log Position to Backend
+    async function logPositionToBackend(latitude, longitude) {
+      try {
+        await fetch(`${API_BASE}/log-gps`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ latitude, longitude })
+        });
+      } catch (error) {
+        console.error('Failed to log position:', error);
+        showToast('Failed to log position to backend.', 'error');
       }
     }
 
-    function renderDemoHistory() {
-      const now = Date.now();
-      const demo = [
-        { lat: DEFAULT_LAT, lng: DEFAULT_LNG, ts: new Date(now).toISOString(), speed: 0 },
-        { lat: DEFAULT_LAT - 0.01, lng: DEFAULT_LNG + 0.01, ts: new Date(now - 600000).toISOString(), speed: 45 },
-        { lat: DEFAULT_LAT - 0.02, lng: DEFAULT_LNG + 0.015, ts: new Date(now - 1200000).toISOString(), speed: 60 },
-        { lat: DEFAULT_LAT - 0.015, lng: DEFAULT_LNG + 0.025, ts: new Date(now - 1800000).toISOString(), speed: 30 },
-        { lat: DEFAULT_LAT - 0.005, lng: DEFAULT_LNG + 0.03, ts: new Date(now - 2400000).toISOString(), speed: 0 },
-      ];
-      gpsPoints = demo.map(p => [p.lat, p.lng]);
-      renderHistory(demo);
-      updateTrail();
-      document.getElementById('bar-points').textContent = demo.length;
-      document.getElementById('bar-distance').textContent = '4.3 km';
-    }
-
-    function renderHistory(points) {
-      const list = document.getElementById('gps-history-list');
-      list.innerHTML = points.map((p, i) => {
-        const lat = (p.lat || p.latitude || 0).toFixed(5);
-        const lng = (p.lng || p.longitude || 0).toFixed(5);
-        return `
-          <div class="gps-hist-item" onclick="focusPoint(${lat}, ${lng})">
-            <div class="hist-dot ${i > 0 ? 'old' : ''}"></div>
-            <div class="hist-info">
-              <div class="hist-coords">${lat}, ${lng}</div>
-              <div class="hist-time">${formatDate(p.timestamp || p.ts)} · ${p.speed ?? 0} km/h</div>
-            </div>
-          </div>
-        `;
-      }).join('');
-    }
-
-    function updateTrail() {
-      if (trailLine) trailLine.setLatLngs(showTrail ? gpsPoints : []);
-    }
-
-    function focusPoint(lat, lng) {
-      map.setView([lat, lng], 15);
-      marker.setLatLng([lat, lng]);
-      updateLocationDisplay(lat, lng);
-    }
-
-    function updateLocationDisplay(lat, lng) {
-      document.getElementById('cur-lat').textContent = lat.toFixed(6);
-      document.getElementById('cur-lng').textContent = lng.toFixed(6);
-      document.getElementById('cur-time').textContent = 'Just now';
-    }
-
-    function centerMap() {
-      if (gpsPoints.length) {
-        const last = gpsPoints[0];
-        map.setView(last, 14);
-      } else {
-        map.setView([DEFAULT_LAT, DEFAULT_LNG], 13);
-      }
-    }
-
-    function toggleTrail() {
-      showTrail = !showTrail;
-      updateTrail();
-      showToast(`Trail ${showTrail ? 'visible' : 'hidden'}`, 'info');
-    }
-
-    function toggleSatellite() {
-      if (currentTile === 'osm') {
-        tiles.osm.remove();
-        tiles.topo.addTo(map);
-        currentTile = 'topo';
-      } else {
-        tiles.topo.remove();
-        tiles.osm.addTo(map);
-        currentTile = 'osm';
-      }
-    }
-
-    // Auto-refresh every 30s
-    setInterval(loadGpsHistory, 30000);
-
-    document.addEventListener('DOMContentLoaded', initMap);
+    document.addEventListener('DOMContentLoaded', () => {
+      // Get location immediately on load
+      updateLocation();
+      // Then update every 30 seconds
+      setInterval(updateLocation, 30000);
+    });
   </script>
 </body>
 

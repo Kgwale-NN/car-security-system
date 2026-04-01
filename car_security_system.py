@@ -20,70 +20,110 @@ class CarDatabase:
         self.init_db()
     
     def init_db(self):
-        """Initialize database with all required tables"""
+        """Initialize database with all required tables and ensure schema is up to date."""
         conn = sqlite3.connect(self.db_file)
         cursor = conn.cursor()
-        
-        # Check if owner exists
-        cursor.execute('''
-            SELECT name FROM sqlite_master 
-            WHERE type='table' AND name='users'
-        ''')
-        
+
+        # Check if users table exists
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
         if not cursor.fetchone():
-            # Create tables if first time
-            cursor.execute('''
-                CREATE TABLE users (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    username TEXT UNIQUE,
-                    password_hash TEXT,
-                    role TEXT CHECK(role IN ('owner', 'driver')),
-                    full_name TEXT,
-                    face_data BLOB,
-                    is_active INTEGER DEFAULT 1,
-                    created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            
-            cursor.execute('''
-                CREATE TABLE settings (
-                    id INTEGER PRIMARY KEY,
-                    allowed_start_hour INTEGER DEFAULT 6,
-                    allowed_end_hour INTEGER DEFAULT 23,
-                    recognition_threshold REAL DEFAULT 0.75,
-                    emergency_pin TEXT DEFAULT '123456'
-                )
-            ''')
-            
-            cursor.execute('''
-                CREATE TABLE access_logs (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER,
-                    username TEXT,
-                    action TEXT,
-                    status TEXT,
-                    details TEXT,
-                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            
-            cursor.execute('''
-                CREATE TABLE dealership_logs (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    action TEXT,
-                    user_affected TEXT,
-                    details TEXT,
-                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            
-            # Insert default settings
-            cursor.execute('INSERT INTO settings (id) VALUES (1)')
-            
+            # Create tables for the first time
+            self._create_tables(cursor)
             print("✅ Database created - Ready for dealership setup")
-        
+        else:
+            # The table exists, let's check and add columns if they are missing
+            self._update_schema(cursor)
+
         conn.commit()
         conn.close()
+
+    def _create_tables(self, cursor):
+        """Creates all necessary tables for a fresh database."""
+        cursor.execute('''
+            CREATE TABLE users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE,
+                password_hash TEXT,
+                role TEXT CHECK(role IN ('owner', 'driver')),
+                full_name TEXT,
+                face_data BLOB,
+                is_active INTEGER DEFAULT 1,
+                created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                phone TEXT,
+                vehicle_registration TEXT
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE settings (
+                id INTEGER PRIMARY KEY,
+                allowed_start_hour INTEGER DEFAULT 6,
+                allowed_end_hour INTEGER DEFAULT 23,
+                recognition_threshold REAL DEFAULT 0.75,
+                emergency_pin TEXT DEFAULT '123456'
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE access_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                username TEXT,
+                action TEXT,
+                status TEXT,
+                details TEXT,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE dealership_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                action TEXT,
+                user_affected TEXT,
+                details TEXT,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE gps_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                latitude REAL NOT NULL,
+                longitude REAL NOT NULL,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        ''')
+        # Insert default settings
+        cursor.execute('INSERT INTO settings (id) VALUES (1)')
+
+    def _update_schema(self, cursor):
+        """Adds missing columns and tables to existing database."""
+        cursor.execute("PRAGMA table_info(users)")
+        columns = [info[1] for info in cursor.fetchall()]
+        # Check for 'phone' column
+        if 'phone' not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN phone TEXT")
+            print("🔧 Database schema updated: Added 'phone' column to users table.")
+        # Check for 'vehicle_registration' column
+        if 'vehicle_registration' not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN vehicle_registration TEXT")
+            print("🔧 Database schema updated: Added 'vehicle_registration' column to users table.")
+
+        # Check for 'gps_log' table
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='gps_log'")
+        if not cursor.fetchone():
+            cursor.execute('''
+                CREATE TABLE gps_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    latitude REAL NOT NULL,
+                    longitude REAL NOT NULL,
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(id)
+                )
+            ''')
+            print("🔧 Database schema updated: Created 'gps_log' table.")
+
+
     
     def get_owner_exists(self):
         """Check if owner is already registered"""
@@ -147,6 +187,219 @@ class CarDatabase:
         owner = cursor.fetchone()
         conn.close()
         return owner if owner else (None, None, None)
+
+    def register_driver_from_web(self, full_name, username, pin, face_data, phone, vehicle_reg):
+        """Registers a new driver from the web interface, including phone and vehicle info."""
+        password_hash = hashlib.sha256(pin.encode()).hexdigest()
+        conn = sqlite3.connect(self.db_file)
+        cursor = conn.cursor()
+        try:
+            cursor.execute('''
+                INSERT INTO users (username, password_hash, role, full_name, face_data, phone, vehicle_registration)
+                VALUES (?, ?, 'driver', ?, ?, ?, ?)
+            ''', (username, password_hash, full_name, face_data, phone, vehicle_reg))
+            conn.commit()
+            user_id = cursor.lastrowid
+
+            cursor.execute('''
+                INSERT INTO dealership_logs (action, user_affected, details)
+                VALUES (?, ?, ?)
+            ''', ('register_driver_web', username, f'Registered driver via web: {full_name}'))
+            conn.commit()
+
+        except sqlite3.IntegrityError:
+            conn.close()
+            return None, "Username already exists."
+        except Exception as e:
+            conn.close()
+            return None, str(e)
+        finally:
+            conn.close()
+
+        return user_id, None
+
+    def get_all_users_with_stats(self):
+        """
+        Fetches all active users and enriches them with access stats.
+        This is for the manager dashboard.
+        """
+        conn = sqlite3.connect(self.db_file)
+        # Use a dictionary factory to make it easier to work with columns by name
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        # Get all users first
+        cursor.execute("SELECT id, username, full_name, role, phone, vehicle_registration, is_active, created_date FROM users WHERE role = 'driver'")
+        users_result = cursor.fetchall()
+        
+        users_list = []
+        for user_row in users_result:
+            user_dict = dict(user_row)
+            
+            # Now, for each user, get their access stats
+            cursor.execute("SELECT COUNT(*) FROM access_logs WHERE username = ?", (user_dict['username'],))
+            total_accesses = cursor.fetchone()[0]
+            
+            cursor.execute("SELECT timestamp FROM access_logs WHERE username = ? ORDER BY timestamp DESC LIMIT 1", (user_dict['username'],))
+            last_access_row = cursor.fetchone()
+            last_access = last_access_row['timestamp'] if last_access_row else None
+            
+            # Build the final dictionary for the frontend
+            users_list.append({
+                "name": user_dict['full_name'],
+                "driver_id": user_dict['username'],
+                "phone": user_dict['phone'],
+                "vehicle_registration": user_dict['vehicle_registration'],
+                "status": "ACTIVE" if user_dict['is_active'] else "INACTIVE",
+                "total_accesses": total_accesses,
+                "last_access": last_access,
+                "registered_date": user_dict['created_date'],
+                "has_face_image": True if user_dict['face_data'] else False
+            })
+
+        conn.close()
+        return users_list
+
+    def get_face_image_by_username(self, username):
+        """Retrieves the raw face_data blob for a given user."""
+        conn = sqlite3.connect(self.db_file)
+        cursor = conn.cursor()
+        # Also retrieve user's full_name for context if needed
+        cursor.execute("SELECT face_data, full_name FROM users WHERE username = ?", (username,))
+        result = cursor.fetchone()
+        conn.close()
+        return result[0] if result else None
+    
+    def delete_user_by_username(self, username):
+        """
+        Permanently deletes a user and all their associated logs.
+        """
+        conn = sqlite3.connect(self.db_file)
+        cursor = conn.cursor()
+        try:
+            # First, get the user_id from the username
+            cursor.execute("SELECT id FROM users WHERE username = ?", (username,))
+            user_row = cursor.fetchone()
+            if not user_row:
+                return False, "User not found."
+
+            user_id = user_row[0]
+
+            # Delete from access_logs
+            cursor.execute("DELETE FROM access_logs WHERE user_id = ?", (user_id,))
+            
+            # Delete from gps_log
+            cursor.execute("DELETE FROM gps_log WHERE user_id = ?", (user_id,))
+
+            # Delete the user from the users table
+            cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
+
+            # Log this major action in the dealership log
+            cursor.execute(
+                "INSERT INTO dealership_logs (action, user_affected, details) VALUES (?, ?, ?)",
+                ('delete_user', username, 'User permanently deleted from system.')
+            )
+            conn.commit()
+            return True, "User deleted successfully."
+
+        except Exception as e:
+            conn.rollback()
+            return False, str(e)
+        finally:
+            conn.close()
+        
+    def get_all_users_with_stats(self):
+        """
+        Fetches all active users and enriches them with access stats.
+        This is for the manager dashboard.
+        """
+        conn = sqlite3.connect(self.db_file)
+        # Use a dictionary factory to make it easier to work with columns by name
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        # Get all users first
+        cursor.execute("SELECT id, username, full_name, role, phone, vehicle_registration, is_active, created_date, face_data FROM users WHERE role = 'driver'")
+        users_result = cursor.fetchall()
+        
+        users_list = []
+        for user_row in users_result:
+            user_dict = dict(user_row)
+            
+            # Now, for each user, get their access stats
+            cursor.execute("SELECT COUNT(*) FROM access_logs WHERE username = ?", (user_dict['username'],))
+            total_accesses = cursor.fetchone()[0]
+            
+            cursor.execute("SELECT timestamp FROM access_logs WHERE username = ? ORDER BY timestamp DESC LIMIT 1", (user_dict['username'],))
+            last_access_row = cursor.fetchone()
+            last_access = last_access_row['timestamp'] if last_access_row else None
+            
+            # Build the final dictionary for the frontend
+            users_list.append({
+                "name": user_dict['full_name'],
+                "driver_id": user_dict['username'],
+                "phone": user_dict['phone'],
+                "vehicle_registration": user_dict['vehicle_registration'],
+                "status": "ACTIVE" if user_dict['is_active'] else "INACTIVE",
+                "total_accesses": total_accesses,
+                "last_access": last_access,
+                "registered_date": user_dict['created_date'],
+                "has_face_image": True if user_dict['face_data'] else False
+            })
+
+        conn.close()
+        return users_list
+
+    def delete_user_by_username(self, username):
+        """
+        Permanently deletes a user and all their associated logs.
+        """
+        conn = sqlite3.connect(self.db_file)
+        cursor = conn.cursor()
+        try:
+            # First, get the user_id from the username
+            cursor.execute("SELECT id FROM users WHERE username = ?", (username,))
+            user_row = cursor.fetchone()
+            if not user_row:
+                return False, "User not found."
+
+            user_id = user_row[0]
+
+            # Delete from access_logs
+            cursor.execute("DELETE FROM access_logs WHERE user_id = ?", (user_id,))
+            
+            # Delete from gps_log
+            cursor.execute("DELETE FROM gps_log WHERE user_id = ?", (user_id,))
+
+            # Delete the user from the users table
+            cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
+
+            # Log this major action in the dealership log
+            cursor.execute(
+                "INSERT INTO dealership_logs (action, user_affected, details) VALUES (?, ?, ?)",
+                ('delete_user', username, 'User permanently deleted from system.')
+            )
+            conn.commit()
+            return True, "User deleted successfully."
+
+        except Exception as e:
+            conn.rollback()
+            return False, str(e)
+        finally:
+            conn.close()
+
+    def get_face_image_by_username(self, username):
+        """Retrieves the raw face_data blob for a given user."""
+        conn = sqlite3.connect(self.db_file)
+        cursor = conn.cursor()
+        cursor.execute("SELECT face_data FROM users WHERE username = ?", (username,))
+        result = cursor.fetchone()
+        conn.close()
+        return result[0] if result else None
+
+
+
+
 
 # ============================================================================
 # FACE RECOGNITION
@@ -1190,124 +1443,50 @@ class CarSystem:
         self.current_user = None
     
     def login(self):
-        """Smart login - uses registered owner's credentials or auto-login for demo"""
-        
-        # Check if any owner is registered
+        """Logs in the registered owner automatically."""
+        # Check if an owner is registered
         if not self.db.get_owner_exists():
-            # No owner registered - use auto-login for dealership demo
-            STORED_USERNAME = "Kgwale"
-            STORED_PASSWORD = "Program3@"
-            STORED_FULL_NAME = "Kgwale Nkgapele Nyakalo"
-            
-            password_hash = hashlib.sha256(STORED_PASSWORD.encode()).hexdigest()
-            
-            conn = sqlite3.connect(self.db.db_file)
-            cursor = conn.cursor()
-            
-            cursor.execute('''
-                SELECT id, username, role, full_name, face_data 
-                FROM users 
-                WHERE username = ? AND password_hash = ? AND is_active = 1
-            ''', (STORED_USERNAME, password_hash))
-            
-            user = cursor.fetchone()
-            
-            if user:
-                self.current_user = {
-                    'id': user[0],
-                    'username': user[1],
-                    'role': user[2],
-                    'full_name': user[3],
-                    'face_data': user[4]
-                }
-                
-                # Log login
-                cursor.execute('''
-                    INSERT INTO access_logs (user_id, username, action, status)
-                    VALUES (?, ?, ?, ?)
-                ''', (user[0], STORED_USERNAME, 'login', 'success'))
-                
-                conn.commit()
-                conn.close()
-                
-                print(f"\n✅ Welcome, {STORED_FULL_NAME}!")
-                return True
-            else:
-                # If auto-login credentials not found, create them for demo
-                try:
-                    cursor.execute('''
-                        INSERT INTO users (username, password_hash, role, full_name)
-                        VALUES (?, ?, 'owner', ?)
-                    ''', (STORED_USERNAME, password_hash, STORED_FULL_NAME))
-                    
-                    cursor.execute('''
-                        INSERT INTO access_logs (user_id, username, action, status)
-                        VALUES (?, ?, ?, ?)
-                    ''', (cursor.lastrowid, STORED_USERNAME, 'login', 'success'))
-                    
-                    conn.commit()
-                    conn.close()
-                    
-                    self.current_user = {
-                        'id': cursor.lastrowid,
-                        'username': STORED_USERNAME,
-                        'role': 'owner',
-                        'full_name': STORED_FULL_NAME,
-                        'face_data': None
-                    }
-                    
-                    print(f"\n✅ Welcome, {STORED_FULL_NAME}!")
-                    print("⚠️  Note: Please visit dealership to register face recognition")
-                    return True
-                    
-                except sqlite3.IntegrityError:
-                    conn.close()
-                    print("\n❌ Auto-login failed. Please check system setup.")
-                    return False
+            print("\n❌ No owner is registered in the system.")
+            print("Please use the Dealership Management system to register an owner first.")
+            return False
+
+        # Get the registered owner's credentials
+        owner_username, stored_hash, owner_name = self.db.get_owner_credentials()
+
+        if not owner_username or not stored_hash:
+            print("❌ Could not retrieve valid owner credentials from the database!")
+            return False
+
+        # Find the user record in the database
+        conn = sqlite3.connect(self.db.db_file)
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT id, username, role, full_name, face_data
+            FROM users
+            WHERE username = ? AND password_hash = ? AND role = 'owner' AND is_active = 1
+        ''', (owner_username, stored_hash))
+
+        user = cursor.fetchone()
+        conn.close()
+
+        if user:
+            self.current_user = {
+                'id': user[0],
+                'username': user[1],
+                'role': user[2],
+                'full_name': user[3],
+                'face_data': user[4]
+            }
+            # Log the successful login
+            self.log_action('login', 'success', f'Auto-login for owner: {owner_name}')
+            print(f"\n✅ Welcome, {owner_name}!")
+            if not user[4]: # if no face_data
+                 print("⚠️  Note: Please visit dealership to register face recognition")
+            return True
         else:
-            # Owner exists - get the registered owner's credentials
-            owner_username, stored_hash, owner_name = self.db.get_owner_credentials()
-            
-            if not owner_username:
-                print("❌ Could not retrieve owner credentials!")
-                return False
-            
-            # Auto-login with the registered owner's credentials
-            conn = sqlite3.connect(self.db.db_file)
-            cursor = conn.cursor()
-            
-            cursor.execute('''
-                SELECT id, username, role, full_name, face_data 
-                FROM users 
-                WHERE username = ? AND password_hash = ? AND is_active = 1
-            ''', (owner_username, stored_hash))
-            
-            user = cursor.fetchone()
-            
-            if user:
-                self.current_user = {
-                    'id': user[0],
-                    'username': user[1],
-                    'role': user[2],
-                    'full_name': user[3],
-                    'face_data': user[4]
-                }
-                
-                # Log login
-                cursor.execute('''
-                    INSERT INTO access_logs (user_id, username, action, status)
-                    VALUES (?, ?, ?, ?)
-                ''', (user[0], owner_username, 'login', 'success'))
-                
-                conn.commit()
-                conn.close()
-                
-                print(f"\n✅ Welcome, {owner_name}!")
-                return True
-            else:
-                conn.close()
-                print("❌ Could not login with registered owner credentials!")
-                return False
+            print("\n❌ Auto-login for the registered owner failed.")
+            print("Please check the system setup or contact the dealership.")
+            return False
     
     def start_car_face(self):
         """Start car using face recognition"""

@@ -82,10 +82,8 @@ function captureFrame(videoEl, canvasEl) {
 // ─── FORMAT HELPERS ────────────────────────────────────────
 function formatDate(iso) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString('en-ZA', {
-    day: '2-digit', month: 'short', year: 'numeric',
-    hour: '2-digit', minute: '2-digit'
-  });
+  // Use the browser's local timezone and format for user-friendliness
+  return new Date(iso).toLocaleString();
 }
 
 function timeAgo(iso) {

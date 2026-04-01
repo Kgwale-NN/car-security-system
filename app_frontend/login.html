@@ -478,6 +478,7 @@
           // Store real session data to hide demo mode and show user name
           localStorage.setItem('userName', data.user || 'Authorized User');
           localStorage.setItem('userRole', data.role || 'driver');
+          localStorage.setItem('userUsername', data.username || ''); // Store the username
           localStorage.setItem('isDemo', 'false');
 
           showMsg('success', `✓ Access Granted — Welcome, ${data.user || 'Driver'}!`);
@@ -494,30 +495,57 @@
     }
 
     async function verifyPin() {
-      const pin = document.getElementById('pin-input').value.trim();
-      if (!pin) { showMsg('error', 'Please enter your PIN.'); return; }
+      const pinInput = document.getElementById('pin-input');
+      const pin = pinInput.value.trim();
 
-      showMsg('info', 'Connecting to vehicle...');
+      if (!pin) {
+        showMsg('error', 'Please enter your Emergency PIN.');
+        return;
+      }
+
+      showMsg('info', 'Verifying credentials...');
+
       try {
         const fd = new FormData();
-        // We only send the 'password' field now
+        // Path B (PIN-only) logic: matches your app.py backend
         fd.append('password', pin);
 
         const { ok, data } = await apiPost('/login', fd);
 
-        if (ok && data.status === 'success') {
-          // Success! Save the name for the Dashboard
-          localStorage.setItem('userName', data.user);
-          localStorage.setItem('userRole', data.role);
+        // Debugging: Crucial for fixing the "no change" issue
+        console.log("Server Response Data:", data);
+
+        // FLEXIBLE CHECK: Catches 'success', 'GRANTED', or any successful login message
+        if (ok && (data.status === 'success' || data.status === 'GRANTED' || data.message === 'Login successful')) {
+
+          // 1. Save database identity to browser memory
+          localStorage.setItem('userName', data.user || "Authorized User");
+          localStorage.setItem('userRole', data.role || "driver");
+          localStorage.setItem('userUsername', data.username || ''); // Store the username
+
+          // 2. Disable Demo Mode so real stats show up
           localStorage.setItem('isDemo', 'false');
 
-          showMsg('success', `✓ Verified: ${data.user}`);
-          setTimeout(() => window.location.href = 'dashboard.html', 1000);
+          showMsg('success', `✓ Verified: Welcome ${data.user || ''}`);
+          showToast('Authentication successful', 'success');
+
+          // 3. Clear input and use ABSOLUTE path for redirect to avoid 404
+          pinInput.value = '';
+          setTimeout(() => {
+            console.log("Moving to Dashboard...");
+            window.location.href = '/app_frontend/dashboard.html';
+          }, 1000);
+
         } else {
+          // This runs if server says 200 OK but logic says 'Invalid'
+          console.error("Login logic rejected by backend:", data);
           showMsg('error', '✕ Invalid PIN Access Denied.');
+          showToast('Access denied', 'error');
+          pinInput.value = '';
         }
       } catch (err) {
-        showMsg('error', 'System Offline — check Uvicorn.');
+        console.error("Connection Error:", err);
+        showMsg('error', 'System Offline — check your Uvicorn terminal.');
       }
     }
 

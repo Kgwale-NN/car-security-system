@@ -657,6 +657,9 @@
             <div class="dc-detail">
               <span>REGISTERED</span><span>${formatDate(d.registered_date)}</span>
             </div>
+            <div class="dc-detail">
+              <span>FACE DATA</span><span>${d.has_face_image ? '<span style="color:var(--accent-green)">✓ Yes</span>' : '<span style="color:var(--accent-red)">✗ No</span>'}</span>
+            </div>
           </div>
           <div class="dc-actions">
             <button class="btn btn-secondary btn-sm" style="flex:1" onclick="toggleDriverStatus(${i}, '${d.driver_id}', '${d.status}')">
@@ -680,11 +683,20 @@
     function confirmDeleteDriver(id, name) {
       openModal(
         '⚠ Delete Driver',
-        `This will permanently remove "${name}" (${id}) from the system, including all biometric data.`,
-        () => {
-          allDrivers = allDrivers.filter(d => d.driver_id !== id);
-          filterDrivers();
-          showToast(`Driver ${name} removed`, 'error');
+        `This will permanently remove "${name}" (${id}) from the system, including all biometric and log data. This action cannot be undone.`,
+        async () => {
+          try {
+            const res = await fetch(`${API_BASE}/users/${id}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (!res.ok) {
+              throw new Error(data.detail || 'Failed to delete');
+            }
+            allDrivers = allDrivers.filter(d => d.driver_id !== id);
+            filterDrivers();
+            showToast(`Driver ${name} has been permanently deleted`, 'success');
+          } catch (err) {
+            showToast(`Error: ${err.message}`, 'error');
+          }
         }
       );
     }

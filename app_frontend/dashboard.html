@@ -357,7 +357,7 @@
       <!-- SIDEBAR -->
       <div class="sidebar">
         <div class="driver-card">
-          <div class="driver-avatar">🧑</div>
+          <img class="driver-avatar" id="driver-avatar" alt="Driver Avatar">
           <div class="driver-name" id="driver-name">Loading...</div>
           <div class="driver-id" id="driver-id">DRV-XXXXXX</div>
           <span class="badge badge-active">● ACTIVE SESSION</span>
@@ -502,12 +502,23 @@
       // --- 1. SET USER IDENTITY FROM LOGIN ---
       const activeName = localStorage.getItem('userName');
       const activeRole = localStorage.getItem('userRole');
+      const activeUsername = localStorage.getItem('userUsername'); // Get the username
       const isDemo = localStorage.getItem('isDemo') === 'true';
 
       if (activeName) {
         document.getElementById('driver-name').textContent = activeName;
-        // Optionally update ID based on role
-        document.getElementById('driver-id').textContent = activeRole === 'owner' ? 'OWNER-SESSION' : 'DRV-SESSION';
+        document.getElementById('driver-id').textContent = activeUsername || (activeRole === 'owner' ? 'OWNER-SESSION' : 'DRV-SESSION');
+        
+        const avatarImg = document.getElementById('driver-avatar');
+        // If the user is a generic owner (from emergency pin) or has no specific username, show a default icon.
+        if (activeRole === 'owner' || !activeUsername) {
+            avatarImg.src = 'https://cdn-icons-png.flaticon.com/512/847/847969.png'; // A generic user/admin icon
+        } else {
+            // Otherwise, try to load their specific face image.
+            avatarImg.src = `${API_BASE}/users/${activeUsername}/image`;
+            // If their image fails to load (e.g., no face data), show a "not found" icon.
+            avatarImg.onerror = () => { avatarImg.src = 'https://cdn-icons-png.flaticon.com/512/2748/2748558.png'; };
+        }
       }
 
       try {
@@ -625,33 +636,60 @@
       }
     }
 
-    function initMiniMap() {
-      const lat = -26.2041;
-      const lng = 28.0473;
+    function setupLiveGpsMiniMap() {
+        let miniMap = null;
+        const latEl = document.getElementById('gps-lat');
+        const lngEl = document.getElementById('gps-lng');
+        const timeEl = document.getElementById('gps-time');
 
-      const map = L.map('mini-map', {
-        center: [lat, lng],
-        zoom: 14,
-        zoomControl: true,
-        dragging: true,
-        scrollWheelZoom: true
-      });
+        const updateMiniMap = () => {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    const lat = pos.coords.latitude;
+                    const lng = pos.coords.longitude;
+                    latEl.textContent = `LAT: ${lat.toFixed(4)}`;
+                    lngEl.textContent = `LNG: ${lng.toFixed(4)}`;
+                    timeEl.textContent = `UPDATED: ${new Date().toLocaleTimeString()}`;
 
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap'
-      }).addTo(map);
-
-      const mapEl = document.getElementById('mini-map');
-      if (mapEl) {
-        mapEl.style.filter = "brightness(0.6) saturate(0.4) hue-rotate(160deg)";
-      }
-
-      L.marker([lat, lng]).addTo(map);
+                    if (miniMap) {
+                        miniMap.setView([lat, lng]);
+                        // Assuming a single marker at index 0, update its position
+                         miniMap.eachLayer(function (layer) {
+                            if (layer instanceof L.Marker) {
+                                layer.setLatLng([lat, lng]);
+                            }
+                        });
+                    } else {
+                        miniMap = L.map('mini-map', { center: [lat, lng], zoom: 14, zoomControl: false, dragging: false, scrollWheelZoom: false });
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(miniMap);
+                        L.marker([lat, lng]).addTo(miniMap);
+                        document.getElementById('mini-map').style.filter = "brightness(0.6) saturate(0.4) hue-rotate(160deg)";
+                    }
+                },
+                () => { // Fallback on error/denial
+                    const lat = -26.2041;
+                    const lng = 28.0473;
+                    latEl.textContent = `LAT: ${lat.toFixed(4)} (Default)`;
+                    lngEl.textContent = `LNG: ${lng.toFixed(4)} (Default)`;
+                    if (!miniMap) {
+                        miniMap = L.map('mini-map', { center: [lat, lng], zoom: 11, zoomControl: false, dragging: false, scrollWheelZoom: false });
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(miniMap);
+                        L.marker([lat, lng]).addTo(miniMap);
+                        document.getElementById('mini-map').style.filter = "brightness(0.6) saturate(0.4) hue-rotate(160deg)";
+                    }
+                },
+                { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+            );
+        };
+        
+        // Update immediately and then every 20 seconds
+        updateMiniMap();
+        setInterval(updateMiniMap, 20000);
     }
 
     document.addEventListener('DOMContentLoaded', () => {
       loadDashboard();
-      initMiniMap();
+      setupLiveGpsMiniMap();
     });
   </script>
 </body>
