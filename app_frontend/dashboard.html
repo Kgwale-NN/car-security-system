@@ -1,13 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dashboard — Biometric Car Security</title>
-  <link rel="stylesheet" href=style.css>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <style>
     .dash-grid {
       display: grid;
@@ -18,12 +17,8 @@
       margin: 0 auto;
     }
 
-    /* ── SIDEBAR ── */
-    .sidebar {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
+    /* SIDEBAR */
+    .sidebar { display: flex; flex-direction: column; gap: 16px; }
 
     .driver-card {
       background: var(--bg-card);
@@ -33,29 +28,34 @@
       text-align: center;
     }
 
-    .driver-avatar {
-      width: 72px;
-      height: 72px;
+    .driver-avatar-wrap {
+      width: 72px; height: 72px;
       border-radius: 50%;
       border: 2px solid var(--accent-cyan);
       margin: 0 auto 14px;
-      background: rgba(0, 229, 255, 0.1);
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      background: rgba(0,229,255,0.1);
+      display: flex; align-items: center; justify-content: center;
       font-size: 2rem;
       box-shadow: var(--glow-cyan);
+      overflow: hidden;
+    }
+    .driver-avatar-wrap img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      border-radius: 50%;
+    }
+    .driver-avatar-wrap .avatar-icon {
+      font-size: 2rem;
     }
 
     .driver-name {
       font-family: var(--font-display);
-      font-size: 1.15rem;
+      font-size: 1.1rem;
       font-weight: 700;
       letter-spacing: 1px;
       color: var(--text-primary);
       margin-bottom: 4px;
     }
-
     .driver-id {
       font-family: var(--font-mono);
       font-size: 0.7rem;
@@ -70,7 +70,6 @@
       border-radius: 8px;
       padding: 20px;
     }
-
     .engine-title {
       font-family: var(--font-mono);
       font-size: 0.68rem;
@@ -79,243 +78,81 @@
       color: var(--text-secondary);
       margin-bottom: 14px;
     }
-
     .engine-status-display {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 16px;
+      display: flex; align-items: center; gap: 10px; margin-bottom: 16px;
     }
-
     .engine-indicator {
-      width: 14px;
-      height: 14px;
+      width: 14px; height: 14px;
       border-radius: 50%;
       transition: all 0.4s;
     }
-
-    .engine-indicator.on {
-      background: var(--accent-green);
-      box-shadow: var(--glow-green);
-      animation: pulse 2s infinite;
-    }
-
-    .engine-indicator.off {
-      background: var(--accent-red);
-      box-shadow: var(--glow-red);
-    }
-
-    .engine-label {
-      font-family: var(--font-display);
-      font-size: 1.1rem;
-      font-weight: 700;
-      letter-spacing: 2px;
-    }
-
-    .engine-label.on {
-      color: var(--accent-green);
-    }
-
-    .engine-label.off {
-      color: var(--accent-red);
-    }
-
+    .engine-indicator.on  { background: var(--accent-green); box-shadow: var(--glow-green); animation: pulse 2s infinite; }
+    .engine-indicator.off { background: var(--accent-red);   box-shadow: var(--glow-red); }
+    .engine-label { font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; letter-spacing: 2px; }
+    .engine-label.on  { color: var(--accent-green); }
+    .engine-label.off { color: var(--accent-red); }
     .engine-toggle {
-      width: 100%;
-      padding: 12px;
-      border-radius: 6px;
-      border: none;
-      font-family: var(--font-display);
-      font-size: 0.85rem;
-      font-weight: 700;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      cursor: pointer;
-      transition: all 0.3s;
+      width: 100%; padding: 12px;
+      border-radius: 6px; border: none;
+      font-family: var(--font-display); font-size: 0.85rem;
+      font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+      cursor: pointer; transition: all 0.3s;
     }
-
-    .engine-toggle.enable {
-      background: var(--accent-green);
-      color: var(--bg-primary);
-    }
-
-    .engine-toggle.disable {
-      background: transparent;
-      border: 1px solid rgba(255, 51, 102, 0.4);
-      color: var(--accent-red);
-    }
-
-    .engine-toggle:hover {
-      opacity: 0.85;
-      transform: scale(0.99);
-    }
+    .engine-toggle.enable  { background: var(--accent-green); color: var(--bg-primary); }
+    .engine-toggle.disable { background: transparent; border: 1px solid rgba(255,51,102,0.4); color: var(--accent-red); }
+    .engine-toggle:hover   { opacity: 0.85; transform: scale(0.99); }
+    .engine-toggle:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 
     /* QUICK NAV */
-    .quick-nav {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      overflow: hidden;
-    }
-
+    .quick-nav { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
     .quick-nav-title {
       padding: 14px 18px;
-      font-family: var(--font-mono);
-      font-size: 0.68rem;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      color: var(--text-secondary);
-      border-bottom: 1px solid var(--border);
+      font-family: var(--font-mono); font-size: 0.68rem;
+      letter-spacing: 2px; text-transform: uppercase;
+      color: var(--text-secondary); border-bottom: 1px solid var(--border);
     }
-
     .quick-nav a {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 13px 18px;
-      text-decoration: none;
-      color: var(--text-secondary);
-      font-family: var(--font-body);
-      font-size: 0.88rem;
-      border-bottom: 1px solid rgba(0, 229, 255, 0.04);
-      transition: all 0.2s;
+      display: flex; align-items: center; gap: 12px;
+      padding: 13px 18px; text-decoration: none;
+      color: var(--text-secondary); font-size: 0.88rem;
+      border-bottom: 1px solid rgba(0,229,255,0.04); transition: all 0.2s;
     }
+    .quick-nav a:last-child { border-bottom: none; }
+    .quick-nav a:hover { background: rgba(0,229,255,0.05); color: var(--text-primary); }
+    .quick-nav a:hover span:first-child { color: var(--accent-cyan); }
+    .quick-nav a span:first-child { font-size: 1rem; width: 20px; text-align: center; color: var(--text-muted); }
 
-    .quick-nav a:last-child {
-      border-bottom: none;
-    }
-
-    .quick-nav a:hover {
-      background: rgba(0, 229, 255, 0.05);
-      color: var(--text-primary);
-    }
-
-    .quick-nav a:hover span:first-child {
-      color: var(--accent-cyan);
-    }
-
-    .quick-nav a span:first-child {
-      font-size: 1rem;
-      width: 20px;
-      text-align: center;
-      color: var(--text-muted);
-    }
-
-    /* ── MAIN CONTENT ── */
-    .main-content {
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-    }
-
-    .stats-row {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 16px;
-    }
+    /* MAIN */
+    .main-content { display: flex; flex-direction: column; gap: 20px; }
+    .stats-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; }
 
     /* ENGINE LOCKED BANNER */
     .locked-banner {
-      display: none;
-      align-items: center;
-      gap: 14px;
+      display: none; align-items: center; gap: 14px;
       padding: 16px 20px;
-      background: rgba(255, 51, 102, 0.08);
-      border: 1px solid rgba(255, 51, 102, 0.3);
-      border-radius: 8px;
-      font-family: var(--font-body);
-      font-size: 0.9rem;
-      color: var(--accent-red);
+      background: rgba(255,51,102,0.08); border: 1px solid rgba(255,51,102,0.3);
+      border-radius: 8px; font-size: 0.9rem; color: var(--accent-red);
     }
+    .locked-banner.show { display: flex; }
 
-    .locked-banner.show {
-      display: flex;
-    }
-
-    .locked-banner span:first-child {
-      font-size: 1.3rem;
-    }
-
-    /* RECENT ACCESS */
-    .recent-row {
-      font-family: var(--font-mono);
-      font-size: 0.75rem;
-    }
-
-    /* GPS MINI */
-    .gps-mini {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      overflow: hidden;
-    }
-
+    /* GPS MINI — matches gps.html style */
+    .gps-mini { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
     .gps-mini-header {
       padding: 14px 18px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
+      display: flex; align-items: center; justify-content: space-between;
       border-bottom: 1px solid var(--border);
     }
-
-    .gps-mini-map {
-      height: 180px;
-      background: var(--bg-secondary);
-      /* Remove the gradients */
-      border-top: 1px solid var(--border);
-      border-bottom: 1px solid var(--border);
-      position: relative;
-      z-index: 1;
-    }
-
-    .leaflet-tile {
-      filter: brightness(0.6) saturate(0.4) hue-rotate(160deg);
-    }
-
-    .gps-blip {
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      background: var(--accent-cyan);
-      box-shadow: var(--glow-cyan);
-      animation: pulse 1.5s infinite;
-    }
-
-    .gps-blip::after {
-      content: '';
-      position: absolute;
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      border: 1px solid rgba(0, 229, 255, 0.3);
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      animation: scannerPulse 2s infinite;
-    }
-
+    #mini-map { height: 220px; }
     .gps-coords {
       padding: 10px 18px;
-      font-family: var(--font-mono);
-      font-size: 0.72rem;
-      letter-spacing: 1px;
-      color: var(--text-secondary);
+      font-family: var(--font-mono); font-size: 0.72rem;
+      letter-spacing: 1px; color: var(--text-secondary);
       border-top: 1px solid var(--border);
-      display: flex;
-      justify-content: space-between;
+      display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px;
     }
 
-    @media (max-width: 900px) {
-      .dash-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .stats-row {
-        grid-template-columns: repeat(2, 1fr);
-      }
-    }
-
-    /* Make Leaflet zoom buttons match the dark theme */
+    /* Leaflet dark theme */
+    .leaflet-tile { filter: brightness(0.6) saturate(0.4) hue-rotate(160deg); }
     .leaflet-control-zoom-in,
     .leaflet-control-zoom-out {
       background-color: var(--bg-card) !important;
@@ -323,19 +160,17 @@
       border: 1px solid var(--border) !important;
     }
 
-    .leaflet-control-zoom-in:hover,
-    .leaflet-control-zoom-out:hover {
-      background-color: var(--bg-card-hover) !important;
-      color: var(--accent-green) !important;
+    @media (max-width: 900px) {
+      .dash-grid { grid-template-columns: 1fr; }
+      .stats-row { grid-template-columns: repeat(2,1fr); }
     }
   </style>
 </head>
-
 <body>
   <nav class="nav">
     <a class="nav-brand" href="dashboard.html">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="22" height="22">
-        <path d="M12 2L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7L12 2z" />
+        <path d="M12 2L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7L12 2z"/>
       </svg>
       BIOCAR SEC
     </a>
@@ -343,7 +178,7 @@
       <li><a href="dashboard.html" class="active">Dashboard</a></li>
       <li><a href="gps.html">GPS</a></li>
       <li><a href="history.html">History</a></li>
-      <li><a href="manager.html">Manager</a></li>
+      <li><a href="manager.html" id="nav-manager">Manager</a></li>
     </ul>
     <div class="nav-status">
       <div class="status-dot"></div>
@@ -357,30 +192,38 @@
       <!-- SIDEBAR -->
       <div class="sidebar">
         <div class="driver-card">
-          <img class="driver-avatar" id="driver-avatar" alt="Driver Avatar">
+          <div class="driver-avatar-wrap" id="avatar-wrap">
+            <span class="avatar-icon" id="avatar-icon">👤</span>
+          </div>
           <div class="driver-name" id="driver-name">Loading...</div>
-          <div class="driver-id" id="driver-id">DRV-XXXXXX</div>
+          <div class="driver-id"   id="driver-id">—</div>
           <span class="badge badge-active">● ACTIVE SESSION</span>
         </div>
 
         <div class="engine-control">
           <div class="engine-title">Engine Control</div>
           <div class="engine-status-display">
-            <div class="engine-indicator on" id="engine-indicator"></div>
+            <div class="engine-indicator on"  id="engine-indicator"></div>
             <div class="engine-label on" id="engine-label">ENABLED</div>
           </div>
           <button class="engine-toggle disable" id="engine-btn" onclick="toggleEngine()">
             ⊗ Lock Engine
           </button>
+          <div style="margin-top:10px">
+            <button class="btn btn-primary btn-sm btn-full" onclick="window.location.href='verify.html'">
+              ▶ Start Engine (Verify)
+            </button>
+          </div>
         </div>
 
         <div class="quick-nav">
           <div class="quick-nav-title">Quick Access</div>
+          <a href="verify.html"><span>▶</span> Start Engine</a>
           <a href="gps.html"><span>⊕</span> GPS Tracking</a>
           <a href="history.html"><span>≡</span> Access History</a>
-          <a href="manager.html"><span>⚙</span> Manager Panel</a>
+          <a href="manager.html" id="qnav-manager"><span>⚙</span> Manager Panel</a>
           <a href="register.html"><span>+</span> Register Driver</a>
-          <a href="login.html" onclick="logout()"><span>⤻</span> Logout</a>
+          <a href="login.html" onclick="logout(event)"><span>⤻</span> Logout</a>
         </div>
       </div>
 
@@ -389,10 +232,7 @@
 
         <div class="locked-banner" id="locked-banner">
           <span>⊗</span>
-          <div>
-            <strong>Engine Locked</strong> — Vehicle access is currently disabled.
-            Enable the engine to allow vehicle operation.
-          </div>
+          <div><strong>Engine Locked</strong> — Vehicle access is currently disabled. Use Verify to re-enable.</div>
         </div>
 
         <!-- STATS -->
@@ -411,11 +251,11 @@
           </div>
           <div class="stat-box">
             <div class="stat-value" id="stat-users" style="color:var(--accent-amber)">—</div>
-            <div class="stat-label">Drivers</div>
+            <div class="stat-label">Users</div>
           </div>
         </div>
 
-        <!-- RECENT ACTIVITY + GPS side by side -->
+        <!-- RECENT ACTIVITY + GPS -->
         <div class="grid-2">
           <div class="card">
             <div class="card-title">Recent Activity</div>
@@ -423,33 +263,25 @@
             <div class="table-wrapper">
               <table>
                 <thead>
-                  <tr>
-                    <th>Time</th>
-                    <th>User</th>
-                    <th>Method</th>
-                    <th>Status</th>
-                  </tr>
+                  <tr><th>Time</th><th>User</th><th>Method</th><th>Status</th></tr>
                 </thead>
                 <tbody id="recent-table">
-                  <tr>
-                    <td colspan="4" style="text-align:center;color:var(--text-muted);padding:24px">Loading...</td>
-                  </tr>
+                  <tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:24px">Loading...</td></tr>
                 </tbody>
               </table>
             </div>
-            <div style="margin-top:14px;text-align:right;">
+            <div style="margin-top:14px;text-align:right">
               <a href="history.html" class="btn btn-secondary btn-sm">View All →</a>
             </div>
           </div>
-          <!-- GPS MINI -->
+
+          <!-- GPS MINI — live Leaflet map identical to gps.html -->
           <div class="gps-mini">
             <div class="gps-mini-header">
               <div class="card-title" style="margin-bottom:0">Live GPS</div>
               <a href="gps.html" class="btn btn-secondary btn-sm">Full View →</a>
             </div>
-
-            <div class="gps-mini-map" id="mini-map" style="height: 180px;"></div>
-
+            <div id="mini-map"></div>
             <div class="gps-coords">
               <span id="gps-lat">LAT: —</span>
               <span id="gps-lng">LNG: —</span>
@@ -463,29 +295,25 @@
           <div class="card-title">System Status</div>
           <div class="card-subtitle">COMPONENT HEALTH</div>
           <div class="grid-4">
-            <div style="text-align:center;padding:16px 0;">
+            <div style="text-align:center;padding:16px 0">
               <div style="font-size:1.5rem;margin-bottom:8px">◈</div>
-              <div style="font-family:var(--font-mono);font-size:0.65rem;letter-spacing:1px;color:var(--text-muted)">
-                FACE RECOG</div>
+              <div style="font-family:var(--font-mono);font-size:0.65rem;letter-spacing:1px;color:var(--text-muted)">FACE RECOG</div>
               <div class="badge badge-granted" style="margin-top:6px">ONLINE</div>
             </div>
-            <div style="text-align:center;padding:16px 0;">
+            <div style="text-align:center;padding:16px 0">
               <div style="font-size:1.5rem;margin-bottom:8px">⊕</div>
-              <div style="font-family:var(--font-mono);font-size:0.65rem;letter-spacing:1px;color:var(--text-muted)">GPS
-                MODULE</div>
-              <div class="badge badge-granted" style="margin-top:6px">ONLINE</div>
+              <div style="font-family:var(--font-mono);font-size:0.65rem;letter-spacing:1px;color:var(--text-muted)">GPS MODULE</div>
+              <div class="badge" id="gps-badge" style="margin-top:6px">CHECKING</div>
             </div>
-            <div style="text-align:center;padding:16px 0;">
+            <div style="text-align:center;padding:16px 0">
               <div style="font-size:1.5rem;margin-bottom:8px">⊘</div>
-              <div style="font-family:var(--font-mono);font-size:0.65rem;letter-spacing:1px;color:var(--text-muted)">
-                ENCRYPTION</div>
+              <div style="font-family:var(--font-mono);font-size:0.65rem;letter-spacing:1px;color:var(--text-muted)">ENCRYPTION</div>
               <div class="badge badge-granted" style="margin-top:6px">ACTIVE</div>
             </div>
-            <div style="text-align:center;padding:16px 0;">
+            <div style="text-align:center;padding:16px 0">
               <div style="font-size:1.5rem;margin-bottom:8px">◎</div>
-              <div style="font-family:var(--font-mono);font-size:0.65rem;letter-spacing:1px;color:var(--text-muted)">API
-                SERVER</div>
-              <div class="badge badge-granted" id="api-badge" style="margin-top:6px">CHECKING</div>
+              <div style="font-family:var(--font-mono);font-size:0.65rem;letter-spacing:1px;color:var(--text-muted)">API SERVER</div>
+              <div class="badge" id="api-badge" style="margin-top:6px">CHECKING</div>
             </div>
           </div>
         </div>
@@ -494,82 +322,95 @@
     </div>
   </div>
 
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="js/utils.js"></script>
   <script>
-    let engineOn = true;
+    let engineOn    = true;
+    let miniMap     = null;
+    let miniMarker  = null;
+    let miniPolyline= null;
+    let gpsHistory  = [];
 
+    // ── GUARD: must be logged in ──────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', () => {
+      if (!localStorage.getItem('userName')) {
+        window.location.href = 'login.html';
+        return;
+      }
+      loadDashboard();
+      initMiniMap();
+    });
+
+    // ── LOAD ALL DATA ─────────────────────────────────────────────────────
     async function loadDashboard() {
-      // --- 1. SET USER IDENTITY FROM LOGIN ---
-      const activeName = localStorage.getItem('userName');
-      const activeRole = localStorage.getItem('userRole');
-      const activeUsername = localStorage.getItem('userUsername'); // Get the username
-      const isDemo = localStorage.getItem('isDemo') === 'true';
+      const userName    = localStorage.getItem('userName')    || '';
+      const userRole    = localStorage.getItem('userRole')    || 'driver';
+      const userUsername= localStorage.getItem('userUsername') || '';
 
-      if (activeName) {
-        document.getElementById('driver-name').textContent = activeName;
-        document.getElementById('driver-id').textContent = activeUsername || (activeRole === 'owner' ? 'OWNER-SESSION' : 'DRV-SESSION');
-        
-        const avatarImg = document.getElementById('driver-avatar');
-        // If the user is a generic owner (from emergency pin) or has no specific username, show a default icon.
-        if (activeRole === 'owner' || !activeUsername) {
-            avatarImg.src = 'https://cdn-icons-png.flaticon.com/512/847/847969.png'; // A generic user/admin icon
-        } else {
-            // Otherwise, try to load their specific face image.
-            avatarImg.src = `${API_BASE}/users/${activeUsername}/image`;
-            // If their image fails to load (e.g., no face data), show a "not found" icon.
-            avatarImg.onerror = () => { avatarImg.src = 'https://cdn-icons-png.flaticon.com/512/2748/2748558.png'; };
-        }
+      // Identity card
+      document.getElementById('driver-name').textContent = userName;
+      document.getElementById('driver-id').textContent   = userUsername
+        ? userUsername.toUpperCase()
+        : (userRole === 'owner' ? 'OWNER' : 'DRIVER');
+
+      // Avatar — try to load real face photo, fall back to role icon
+      const avatarWrap = document.getElementById('avatar-wrap');
+      const avatarIcon = document.getElementById('avatar-icon');
+
+      if (userUsername) {
+        const img = document.createElement('img');
+        img.alt   = userName;
+        img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%;';
+        img.onload = () => {
+          avatarIcon.style.display = 'none';
+          avatarWrap.appendChild(img);
+        };
+        img.onerror = () => {
+          // No photo stored — show role icon
+          avatarIcon.textContent = userRole === 'owner' ? '👑' : '👤';
+          avatarIcon.style.display = '';
+        };
+        img.src = `${API_BASE}/users/${encodeURIComponent(userUsername)}/image`;
+        // Show icon immediately while image loads
+        avatarIcon.textContent = userRole === 'owner' ? '👑' : '👤';
+      } else {
+        avatarIcon.textContent = userRole === 'owner' ? '👑' : '👤';
       }
 
+      // Driver-only: hide manager link
+      if (userRole === 'driver') {
+        const mgrLinks = document.querySelectorAll('#nav-manager, #qnav-manager');
+        mgrLinks.forEach(el => el.style.display = 'none');
+      }
+
+      // Stats from backend
       try {
-        // --- 2. LOAD LIVE STATS FROM BACKEND ---
         const stats = await apiGet('/stats');
-
-        document.getElementById('stat-total').textContent = stats.total_accesses ?? '0';
-        document.getElementById('stat-granted').textContent = stats.granted ?? '0';
-        document.getElementById('stat-denied').textContent = stats.denied ?? '0';
-        document.getElementById('stat-users').textContent = stats.total_users ?? '0';
-
-        document.getElementById('api-badge').textContent = 'ONLINE';
-        document.getElementById('api-badge').className = 'badge badge-granted';
-
-        // Hide "Demo Data" warnings if the API confirms live status
-        if (stats.status === 'LIVE') {
-          // If you have a specific "Demo Data" warning element, hide it here
-          console.log("System status: LIVE");
-        }
-      } catch (err) {
+        document.getElementById('stat-total').textContent   = stats.total_accesses ?? 0;
+        document.getElementById('stat-granted').textContent = stats.granted ?? 0;
+        document.getElementById('stat-denied').textContent  = stats.denied  ?? 0;
+        document.getElementById('stat-users').textContent   = stats.total_users ?? 0;
+        document.getElementById('api-badge').textContent  = 'ONLINE';
+        document.getElementById('api-badge').className    = 'badge badge-granted';
+      } catch {
         document.getElementById('api-badge').textContent = 'OFFLINE';
-        document.getElementById('api-badge').className = 'badge badge-denied';
-
-        // Fallback demo data if backend is unreachable
-        document.getElementById('stat-total').textContent = '142';
-        document.getElementById('stat-granted').textContent = '138';
-        document.getElementById('stat-denied').textContent = '4';
-        document.getElementById('stat-users').textContent = '3';
+        document.getElementById('api-badge').className   = 'badge badge-denied';
+        document.getElementById('stat-total').textContent   = '—';
+        document.getElementById('stat-granted').textContent = '—';
+        document.getElementById('stat-denied').textContent  = '—';
+        document.getElementById('stat-users').textContent   = '—';
       }
-
-      // --- 3. ROLE-BASED ACCESS CONTROL ---
-      const settingsBtn = document.getElementById('change-hours-btn');
-      if (activeRole === 'driver' && settingsBtn) {
-        settingsBtn.style.display = 'none';
-        showToast('Driver Mode: Advanced settings locked', 'info');
-      }
-
-      // --- 4. GPS & RECENT ACTIVITY ---
-      // These coordinates can eventually be pulled from stats API as well
-      document.getElementById('gps-lat').textContent = 'LAT: -26.2041';
-      document.getElementById('gps-lng').textContent = 'LNG: 28.0473';
-      document.getElementById('gps-time').textContent = 'UPDATED: Just now';
 
       loadRecentActivity();
     }
 
+    // ── RECENT ACTIVITY ───────────────────────────────────────────────────
     async function loadRecentActivity() {
       const tbody = document.getElementById('recent-table');
       try {
         const data = await apiGet('/logs?limit=5');
-        const logs = data.logs || data;
+        const logs = data.logs || [];
         if (!logs.length) {
           tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px">No activity yet</td></tr>`;
           return;
@@ -583,115 +424,152 @@
           </tr>
         `).join('');
       } catch {
-        // Demo rows shown only if API fails
-        const demo = [
-          { timestamp: new Date(Date.now() - 60000).toISOString(), user: 'John Doe', method: 'FACE', status: 'GRANTED' },
-          { timestamp: new Date(Date.now() - 3600000).toISOString(), user: 'Unknown', method: 'FACE', status: 'DENIED' },
-          { timestamp: new Date(Date.now() - 7200000).toISOString(), user: 'John Doe', method: 'PIN', status: 'GRANTED' },
-        ];
-        tbody.innerHTML = demo.map(log => `
-          <tr>
-            <td class="mono" style="font-size:0.75rem">${timeAgo(log.timestamp)}</td>
-            <td>${log.user}</td>
-            <td class="mono" style="font-size:0.72rem;color:var(--text-secondary)">${log.method}</td>
-            <td>${statusBadge(log.status)}</td>
-          </tr>
-        `).join('');
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px">Could not load — backend offline</td></tr>`;
       }
     }
 
+    // ── LIVE GPS MINI MAP — same as gps.html ─────────────────────────────
+    function initMiniMap() {
+      const latEl  = document.getElementById('gps-lat');
+      const lngEl  = document.getElementById('gps-lng');
+      const timeEl = document.getElementById('gps-time');
+      const gpsBadge = document.getElementById('gps-badge');
+
+      const carIcon = L.icon({
+        iconUrl:    'https://cdn-icons-png.flaticon.com/512/3202/3202926.png',
+        iconSize:   [34, 34],
+        iconAnchor: [17, 34],
+        popupAnchor:[0, -34]
+      });
+
+      function applyDarkFilter() {
+        const mapEl = document.getElementById('mini-map');
+        if (mapEl) mapEl.style.filter = 'brightness(0.6) saturate(0.4) hue-rotate(160deg)';
+      }
+
+      function onPosition(pos) {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const username = localStorage.getItem('userUsername') || '';
+
+        latEl.textContent  = `LAT: ${lat.toFixed(5)}`;
+        lngEl.textContent  = `LNG: ${lng.toFixed(5)}`;
+        timeEl.textContent = `UPDATED: ${new Date().toLocaleTimeString()}`;
+        gpsBadge.textContent = 'ONLINE';
+        gpsBadge.className   = 'badge badge-granted';
+
+        if (!miniMap) {
+          miniMap = L.map('mini-map', {
+            center: [lat, lng], zoom: 15,
+            zoomControl: true, dragging: true, scrollWheelZoom: false
+          });
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19, attribution: '© OpenStreetMap'
+          }).addTo(miniMap);
+          miniMarker = L.marker([lat, lng], { icon: carIcon })
+            .addTo(miniMap)
+            .bindPopup('<b>Current Position</b><br>Your vehicle is here.');
+          applyDarkFilter();
+        } else {
+          miniMarker.setLatLng([lat, lng]);
+          if (!miniMap.getBounds().contains([lat, lng])) {
+            miniMap.setView([lat, lng]);
+          }
+        }
+
+        // Draw route history
+        gpsHistory.push([lat, lng]);
+        if (miniPolyline) {
+          miniPolyline.setLatLngs(gpsHistory);
+        } else if (gpsHistory.length > 1) {
+          miniPolyline = L.polyline(gpsHistory, {
+            color: '#00e5ff', weight: 3, opacity: 0.8
+          }).addTo(miniMap);
+        }
+
+        // Log GPS to backend
+        fetch(`${API_BASE}/log-gps`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ latitude: lat, longitude: lng, username })
+        }).catch(() => {});
+      }
+
+      function onError() {
+        gpsBadge.textContent = 'DENIED';
+        gpsBadge.className   = 'badge badge-denied';
+        latEl.textContent    = 'LAT: Permission denied';
+        lngEl.textContent    = 'LNG: —';
+        if (!miniMap) {
+          // Neutral fallback — no hardcoded location shown as real position
+          miniMap = L.map('mini-map', {
+            center: [0, 0], zoom: 2,
+            zoomControl: true, dragging: true, scrollWheelZoom: false
+          });
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19, attribution: '© OpenStreetMap'
+          }).addTo(miniMap);
+          applyDarkFilter();
+          L.popup().setLatLng([0,0])
+            .setContent('<b>Location access denied</b><br>Enable GPS to track vehicle.')
+            .openOn(miniMap);
+        }
+      }
+
+      function update() {
+        navigator.geolocation.getCurrentPosition(onPosition, onError,
+          { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 });
+      }
+
+      // Also load stored history from backend
+      apiGet('/gps-history?username=' + (localStorage.getItem('userUsername') || ''))
+        .then(data => {
+          if (data.history && data.history.length > 0) {
+            gpsHistory = data.history.map(p => [p.latitude, p.longitude]);
+          }
+        }).catch(() => {});
+
+      update();
+      setInterval(update, 20000);
+    }
+
+    // ── ENGINE TOGGLE ─────────────────────────────────────────────────────
     function toggleEngine() {
       engineOn = !engineOn;
       const indicator = document.getElementById('engine-indicator');
-      const label = document.getElementById('engine-label');
-      const btn = document.getElementById('engine-btn');
-      const banner = document.getElementById('locked-banner');
-      const navLabel = document.getElementById('nav-engine-label');
+      const label     = document.getElementById('engine-label');
+      const btn       = document.getElementById('engine-btn');
+      const banner    = document.getElementById('locked-banner');
+      const navLabel  = document.getElementById('nav-engine-label');
 
       if (engineOn) {
         indicator.className = 'engine-indicator on';
-        label.className = 'engine-label on';
-        label.textContent = 'ENABLED';
-        btn.className = 'engine-toggle disable';
-        btn.textContent = '⊗ Lock Engine';
+        label.className     = 'engine-label on';
+        label.textContent   = 'ENABLED';
+        btn.className       = 'engine-toggle disable';
+        btn.textContent     = '⊗ Lock Engine';
         banner.classList.remove('show');
-        navLabel.textContent = 'ONLINE';
-        showToast('Engine enabled — vehicle can operate', 'success');
+        navLabel.textContent= 'ONLINE';
+        showToast('Engine enabled', 'success');
       } else {
         indicator.className = 'engine-indicator off';
-        label.className = 'engine-label off';
-        label.textContent = 'LOCKED';
-        btn.className = 'engine-toggle enable';
-        btn.textContent = '✓ Enable Engine';
+        label.className     = 'engine-label off';
+        label.textContent   = 'LOCKED';
+        btn.className       = 'engine-toggle enable';
+        btn.textContent     = '✓ Enable Engine';
         banner.classList.add('show');
-        navLabel.textContent = 'LOCKED';
-        showToast('Engine locked — vehicle is secured', 'info');
+        navLabel.textContent= 'LOCKED';
+        showToast('Engine locked — vehicle secured', 'info');
       }
     }
 
-    function logout() {
+    function logout(e) {
+      e.preventDefault();
       if (confirm('Log out of the current session?')) {
-        localStorage.clear(); // Clear session data
+        localStorage.clear();
         window.location.href = 'login.html';
       }
     }
-
-    function setupLiveGpsMiniMap() {
-        let miniMap = null;
-        const latEl = document.getElementById('gps-lat');
-        const lngEl = document.getElementById('gps-lng');
-        const timeEl = document.getElementById('gps-time');
-
-        const updateMiniMap = () => {
-            navigator.geolocation.getCurrentPosition(
-                (pos) => {
-                    const lat = pos.coords.latitude;
-                    const lng = pos.coords.longitude;
-                    latEl.textContent = `LAT: ${lat.toFixed(4)}`;
-                    lngEl.textContent = `LNG: ${lng.toFixed(4)}`;
-                    timeEl.textContent = `UPDATED: ${new Date().toLocaleTimeString()}`;
-
-                    if (miniMap) {
-                        miniMap.setView([lat, lng]);
-                        // Assuming a single marker at index 0, update its position
-                         miniMap.eachLayer(function (layer) {
-                            if (layer instanceof L.Marker) {
-                                layer.setLatLng([lat, lng]);
-                            }
-                        });
-                    } else {
-                        miniMap = L.map('mini-map', { center: [lat, lng], zoom: 14, zoomControl: false, dragging: false, scrollWheelZoom: false });
-                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(miniMap);
-                        L.marker([lat, lng]).addTo(miniMap);
-                        document.getElementById('mini-map').style.filter = "brightness(0.6) saturate(0.4) hue-rotate(160deg)";
-                    }
-                },
-                () => { // Fallback on error/denial
-                    const lat = -26.2041;
-                    const lng = 28.0473;
-                    latEl.textContent = `LAT: ${lat.toFixed(4)} (Default)`;
-                    lngEl.textContent = `LNG: ${lng.toFixed(4)} (Default)`;
-                    if (!miniMap) {
-                        miniMap = L.map('mini-map', { center: [lat, lng], zoom: 11, zoomControl: false, dragging: false, scrollWheelZoom: false });
-                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(miniMap);
-                        L.marker([lat, lng]).addTo(miniMap);
-                        document.getElementById('mini-map').style.filter = "brightness(0.6) saturate(0.4) hue-rotate(160deg)";
-                    }
-                },
-                { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-            );
-        };
-        
-        // Update immediately and then every 20 seconds
-        updateMiniMap();
-        setInterval(updateMiniMap, 20000);
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
-      loadDashboard();
-      setupLiveGpsMiniMap();
-    });
   </script>
 </body>
-
 </html>

@@ -354,14 +354,18 @@ async def delete_user(username: str):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  7. USER FACE AVATAR
-#     InsightFace stores embeddings, not pixel images.
-#     We return a 404 so the dashboard falls back to a silhouette icon.
-#     If you later store actual photos, replace this endpoint.
+#  7. USER FACE AVATAR — returns stored JPEG photo
 # ═══════════════════════════════════════════════════════════════════════════
 @app.get("/api/users/{username}/image")
 async def get_user_image(username: str):
-    raise HTTPException(status_code=404, detail="Pixel image not available — embedding only")
+    conn = db.get_conn(); c = conn.cursor()
+    c.execute("SELECT face_photo FROM users WHERE username=?", (username,))
+    row = c.fetchone(); conn.close()
+
+    if not row or not row[0]:
+        raise HTTPException(status_code=404, detail="No photo on file for this user")
+
+    return Response(content=row[0], media_type="image/jpeg")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -408,7 +412,22 @@ async def register_driver(
     pw_hash = hashlib.pbkdf2_hmac("sha256", pin.encode(), salt.encode(), 100000).hex()
     blob    = security.encrypt_data(pickle.dumps(emb))
 
-    if not db.add_user(driver_id, pw_hash, salt, "driver", name, blob):
+    # Crop and store face photo as JPEG avatar
+    photo_bytes = None
+    try:
+        x1, y1, x2, y2 = det.bbox.astype(int)
+        pad = 30
+        h_img, w_img = img_bgr.shape[:2]
+        x1c = max(0, x1 - pad); y1c = max(0, y1 - pad)
+        x2c = min(w_img, x2 + pad); y2c = min(h_img, y2 + pad)
+        face_crop = cv2.resize(img_bgr[y1c:y2c, x1c:x2c], (256, 256))
+        ok, buf = cv2.imencode('.jpg', face_crop, [cv2.IMWRITE_JPEG_QUALITY, 90])
+        if ok:
+            photo_bytes = buf.tobytes()
+    except Exception:
+        pass  # photo is optional — registration still succeeds
+
+    if not db.add_user(driver_id, pw_hash, salt, "driver", name, blob, photo_bytes):
         raise HTTPException(status_code=500, detail="Database error")
 
     db.log_event("DRIVER_REGISTERED", "INFO", f"{name} registered via web")

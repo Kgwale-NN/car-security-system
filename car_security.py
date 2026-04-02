@@ -69,8 +69,14 @@ class CarDatabase:
             role TEXT CHECK(role IN ("owner","driver")),
             full_name TEXT,
             face_embedding BLOB,
+            face_photo BLOB,
             created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )''')
+
+        # Auto-migrate older databases that lack face_photo column
+        c.execute("PRAGMA table_info(users)")
+        if 'face_photo' not in [row[1] for row in c.fetchall()]:
+            c.execute("ALTER TABLE users ADD COLUMN face_photo BLOB")
 
         c.execute('''CREATE TABLE IF NOT EXISTS settings (
             id INTEGER PRIMARY KEY,
@@ -106,6 +112,14 @@ class CarDatabase:
             pin_hash = hashlib.pbkdf2_hmac('sha256', pin.encode(), salt.encode(), 100000).hex()
             c.execute("INSERT INTO settings (id, emergency_pin_hash, emergency_pin_salt) VALUES (1,?,?)", (pin_hash, salt))
             print("✅ Database initialized  |  Default emergency PIN: 123456")
+
+        # Migration: add face_photo column if it doesn't exist yet (for existing DBs)
+        try:
+            c.execute("ALTER TABLE users ADD COLUMN face_photo BLOB")
+            conn.commit()
+            print("✅ DB migrated: face_photo column added")
+        except Exception:
+            pass  # Column already exists — normal on all runs after the first
 
         conn.commit()
         conn.close()
@@ -147,11 +161,11 @@ class CarDatabase:
         c.execute("SELECT COUNT(*) FROM users WHERE LOWER(username)=LOWER(?)", (username,))
         n = c.fetchone()[0]; conn.close(); return n > 0
 
-    def add_user(self, username, pw_hash, salt, role, full_name, emb_blob):
+    def add_user(self, username, pw_hash, salt, role, full_name, emb_blob, face_photo=None):
         conn = self.get_conn(); c = conn.cursor()
         try:
-            c.execute("INSERT INTO users (username,password_hash,salt,role,full_name,face_embedding) VALUES (?,?,?,?,?,?)",
-                      (username, pw_hash, salt, role, full_name, emb_blob))
+            c.execute("INSERT INTO users (username,password_hash,salt,role,full_name,face_embedding,face_photo) VALUES (?,?,?,?,?,?,?)",
+                      (username, pw_hash, salt, role, full_name, emb_blob, face_photo))
             conn.commit(); ok = True
         except sqlite3.IntegrityError:
             ok = False
@@ -258,7 +272,8 @@ class FaceEngine:
 
     # ------------------------------------------------------------------
     def register_face(self, person_name, role):
-        """Capture 10 frames and average embeddings for a stable profile."""
+        """Capture 10 frames and average embeddings for a stable profile.
+        Returns (embedding, jpeg_bytes) or (None, None) on cancel."""
         print(f"\n📸  FACE REGISTRATION  —  {person_name}  ({role})")
         print("=" * 60)
         print("  ► Good lighting, face the camera directly")
@@ -269,17 +284,18 @@ class FaceEngine:
 
         cam = cv2.VideoCapture(0)
         if not cam.isOpened():
-            print("❌ Cannot open camera!"); return None
+            print("❌ Cannot open camera!"); return None, None
 
-        samples = []
-        needed  = 10
+        samples    = []
+        best_frame = None   # best-quality frame for the avatar photo
+        needed     = 10
 
         while len(samples) < needed:
             ret, frame = cam.read()
             if not ret: continue
 
-            display      = frame.copy()
-            emb, bbox    = self._best_face(frame)
+            display   = frame.copy()
+            emb, bbox = self._best_face(frame)
 
             if bbox is not None:
                 x1,y1,x2,y2 = bbox
@@ -297,10 +313,13 @@ class FaceEngine:
             key = cv2.waitKey(1) & 0xFF
             if key == ord('q'):
                 cam.release(); cv2.destroyAllWindows()
-                print("❌ Registration cancelled"); return None
+                print("❌ Registration cancelled"); return None, None
             elif key == 32:
                 if emb is not None:
                     samples.append(emb)
+                    # Save the middle capture as the avatar photo
+                    if len(samples) == needed // 2:
+                        best_frame = frame.copy()
                     print(f"  ✅ Capture {len(samples)}/{needed}")
                 else:
                     print("  ❌ No face in frame — try again")
@@ -308,7 +327,15 @@ class FaceEngine:
         cam.release(); cv2.destroyAllWindows()
         avg = np.mean(samples, axis=0)
         print(f"✅ Registration complete — {needed} captures averaged into profile")
-        return avg
+
+        # Encode avatar photo as JPEG bytes
+        photo_bytes = None
+        if best_frame is not None:
+            ok, buf = cv2.imencode('.jpg', best_frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+            if ok:
+                photo_bytes = buf.tobytes()
+
+        return avg, photo_bytes
 
     # ------------------------------------------------------------------
     def identify(self, registered_faces, threshold=0.4):
@@ -507,7 +534,7 @@ class DealershipSystem:
         if pw != input("Confirm password: ").strip():
             print("❌ Don't match."); return
 
-        emb = self.face.register_face(name, "owner")
+        emb, photo = self.face.register_face(name, "owner")
         if emb is None: return
 
         existing = self.db.all_embeddings()
@@ -522,7 +549,7 @@ class DealershipSystem:
         h    = hashlib.pbkdf2_hmac('sha256', pw.encode(), salt.encode(), 100000).hex()
         blob = security.encrypt_data(pickle.dumps(emb))
 
-        if self.db.add_user(uname, h, salt, 'owner', name, blob):
+        if self.db.add_user(uname, h, salt, 'owner', name, blob, photo):
             self.db.log_event("OWNER_REGISTERED","INFO",f"{name} registered")
             print(f"\n✅ Owner '{name}' registered!")
         else:
@@ -548,7 +575,7 @@ class DealershipSystem:
         tmp = secrets.token_hex(4)
         print(f"\n  Temporary password: {tmp}")
 
-        emb = self.face.register_face(name, "driver")
+        emb, photo = self.face.register_face(name, "driver")
         if emb is None: return
 
         existing = self.db.all_embeddings()
@@ -563,7 +590,7 @@ class DealershipSystem:
         h    = hashlib.pbkdf2_hmac('sha256', tmp.encode(), salt.encode(), 100000).hex()
         blob = security.encrypt_data(pickle.dumps(emb))
 
-        if self.db.add_user(uname, h, salt, 'driver', name, blob):
+        if self.db.add_user(uname, h, salt, 'driver', name, blob, photo):
             self.db.log_event("DRIVER_REGISTERED","INFO",f"{name} registered")
             print(f"\n✅ Driver '{name}' registered!  Temp password: {tmp}")
         else:
