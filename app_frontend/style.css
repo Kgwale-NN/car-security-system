@@ -616,6 +616,90 @@ tbody td {
   }
 }
 
+/* INFO ROW — used in GPS sidebar and manager cards */
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 9px 0;
+  border-bottom: 1px solid rgba(0, 229, 255, 0.06);
+  font-size: 0.85rem;
+}
+
+.info-row:last-child {
+  border-bottom: none;
+}
+
+.info-row > span:first-child {
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.info-row > span:last-child {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* FILTER SELECT — used in history and manager */
+.filter-select {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 7px 12px;
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.filter-select:focus {
+  border-color: var(--accent-cyan);
+}
+
+/* LEAFLET DARK THEME */
+.leaflet-tile {
+  filter: brightness(0.6) saturate(0.4) hue-rotate(160deg);
+}
+
+.leaflet-control-zoom-in,
+.leaflet-control-zoom-out {
+  background-color: var(--bg-card) !important;
+  color: var(--accent-cyan) !important;
+  border: 1px solid var(--border) !important;
+}
+
+.leaflet-control-zoom-in:hover,
+.leaflet-control-zoom-out:hover {
+  background-color: var(--bg-card-hover) !important;
+}
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: var(--bg-card) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.leaflet-popup-content {
+  font-family: var(--font-body);
+  color: var(--text-primary);
+}
+
+.leaflet-control-attribution {
+  background: rgba(5, 10, 15, 0.7) !important;
+  color: var(--text-muted) !important;
+}
+
+.leaflet-control-attribution a {
+  color: var(--accent-cyan) !important;
+}
+
 
 /* Improved Scanning Animation */
 .scanning .scan-line {

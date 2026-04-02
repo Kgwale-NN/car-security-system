@@ -1,26 +1,39 @@
-from fastapi.staticfiles import StaticFiles
 import os
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from starlette.responses import RedirectResponse
+import re
 import cv2
 import numpy as np
 import pickle
 import hashlib
-from datetime import datetime
 import sqlite3
+from datetime import datetime
 
-# Import your original classes from car_security_system.py
-from car_security_system import CarDatabase, FaceRecognitionSystem
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Response
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse
+from pydantic import BaseModel
 
-app = FastAPI()
-db = CarDatabase()
-face_system = FaceRecognitionSystem()
+# ── Import the actual classes from car_security.py ─────────────────────────
+from car_security import CarDatabase, SecurityManager, FaceEngine
 
-app.mount("/app_frontend", StaticFiles(directory="app_frontend"), name="app_frontend")
+app = FastAPI(title="BioCar Security API")
 
-# Enable CORS so your HTML files can talk to this server
+# ── Initialise singletons ───────────────────────────────────────────────────
+security = SecurityManager()
+db       = CarDatabase()
+
+# ── Lazy-load FaceEngine (it downloads ~200MB models on first use) ──────────
+_face_engine = None
+
+def _get_face() -> FaceEngine:
+    global _face_engine
+    if _face_engine is None:
+        _face_engine = FaceEngine()
+    return _face_engine
+
+# ── Static files & CORS ─────────────────────────────────────────────────────
+app.mount("/app_frontend", StaticFiles(directory="app_frontend"), name="frontend")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -32,275 +45,483 @@ app.add_middleware(
 async def root():
     return RedirectResponse(url="/app_frontend/login.html")
 
-# --- 1. LOGIN & AUTHENTICATION ---
-def get_driver_by_username(db, username):
-    conn = sqlite3.connect(db.db_file)
-    cursor = conn.cursor()
-    cursor.execute("SELECT username, password_hash, full_name FROM users WHERE role = 'driver' AND username = ? AND is_active = 1", (username,))
-    driver = cursor.fetchone()
-    conn.close()
-    return driver if driver else (None, None, None)
-
-# -- login pin verification (for login.html) ---
+# ═══════════════════════════════════════════════════════════════════════════
+#  1. LOGIN  — PIN-based (face handled by /api/verify-face)
+# ═══════════════════════════════════════════════════════════════════════════
 @app.post("/api/login")
 async def login(password: str = Form(...)):
-    # In the web UI, the "password" is a PIN
-    input_pin = password
+    pin = password.strip()
+    if not pin:
+        return {"status": "error", "message": "PIN required"}
 
-    # 1. Check if it's the Emergency PIN from settings
-    conn = sqlite3.connect(db.db_file)
-    cursor = conn.cursor()
-    cursor.execute("SELECT emergency_pin FROM settings WHERE id = 1")
-    emergency_pin = cursor.fetchone()
+    # Check emergency PIN first (raw PBKDF2 check in CarDatabase)
+    if db.verify_pin(pin):
+        db.log_access(None, "Emergency", "pin_login", "granted", "Emergency PIN used")
+        return {"status": "success", "user": "Emergency Access", "role": "owner", "username": ""}
+
+    # Check all users — PBKDF2 with per-user salt
+    conn = db.get_conn()
+    c    = conn.cursor()
+    c.execute("SELECT id, username, password_hash, salt, full_name, role FROM users")
+    rows = c.fetchall()
     conn.close()
 
-    if emergency_pin and input_pin == emergency_pin[0]:
-        # Log this specific event
-        conn = sqlite3.connect(db.db_file)
-        cursor = conn.cursor()
-        cursor.execute("INSERT INTO access_logs (username, action, status, details) VALUES (?, ?, ?, ?)",
-                       ('System', 'login', 'success', 'Emergency PIN used'))
-        conn.commit()
-        conn.close()
-        return {"status": "success", "user": "EMERGENCY ACCESS", "role": "owner"} # Grant owner role for full access
+    for uid, uname, pw_hash, salt, full_name, role in rows:
+        if not pw_hash or not salt:
+            continue
+        computed = hashlib.pbkdf2_hmac("sha256", pin.encode(), salt.encode(), 100000).hex()
+        if computed == pw_hash:
+            db.log_access(uid, uname, "pin_login", "granted", f"role={role}")
+            return {"status": "success", "user": full_name, "role": role, "username": uname}
 
-    # Hash the input for checking against user PINs
-    input_hash = hashlib.sha256(input_pin.encode()).hexdigest()
-
-    # 2. Check if it's the Owner's PIN
-    owner_user, stored_hash, full_name = db.get_owner_credentials()
-    if stored_hash and input_hash == stored_hash:
-        return {"status": "success", "user": full_name, "role": "owner"}
-
-    # 3. Check if it's a Driver's PIN
-    conn = sqlite3.connect(db.db_file)
-    cursor = conn.cursor()
-    cursor.execute("SELECT full_name, username FROM users WHERE password_hash = ? AND role = 'driver' AND is_active = 1", (input_hash,))
-    driver = cursor.fetchone()
-    conn.close()
-
-    if driver:
-        # The user's name is the first element, username is the second
-        driver_name, driver_username = driver
-        return {"status": "success", "user": driver_name, "role": "driver", "username": driver_username}
-
+    db.log_access(None, "Unknown", "pin_login", "denied", "Wrong PIN")
     return {"status": "error", "message": "Invalid PIN"}
 
-# --- 2. FACE VERIFICATION (For verify.html) ---
-def get_recognition_threshold(db):
-    conn = sqlite3.connect(db.db_file)
-    cursor = conn.cursor()
-    cursor.execute("SELECT recognition_threshold FROM settings WHERE id = 1")
-    threshold = cursor.fetchone()
-    conn.close()
-    return threshold[0] if threshold else 0.75
 
+# ═══════════════════════════════════════════════════════════════════════════
+#  2. FACE VERIFY  (login.html face tab + verify.html)
+# ═══════════════════════════════════════════════════════════════════════════
 @app.post("/api/verify-face")
 async def verify_face(face_image: UploadFile = File(...)):
-    # Convert uploaded web image to OpenCV format
     contents = await face_image.read()
-    nparr = np.frombuffer(contents, np.uint8)
-    img = cv2.imdecode(nparr, cv2.IMREAD_GRAYSCALE)
-    img_resized = cv2.resize(img, (100, 100))
-    new_face_data = pickle.dumps(img_resized)
+    nparr    = np.frombuffer(contents, np.uint8)
+    img_bgr  = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
-    # Get threshold from your database settings
-    threshold = get_recognition_threshold(db)
+    if img_bgr is None:
+        raise HTTPException(status_code=400, detail="Could not decode image")
 
-    existing_faces = db.get_all_face_data()
-    is_similar, similarity, _ = face_system.check_face_similarity(new_face_data, existing_faces, threshold)
+    face       = _get_face()
+    _, _, thr  = db.get_settings()
+    registered = db.all_embeddings()
 
-    if is_similar:
-        return {"status": "GRANTED", "match": round(similarity * 100, 1)}
-    return {"status": "DENIED", "match": round(similarity * 100, 1)}
+    if not registered:
+        return {"status": "DENIED", "message": "No registered users"}
 
-# --- 3. SYSTEM STATS (For dashboard.html) ---
-def get_system_stats(db):
-    conn = sqlite3.connect(db.db_file)
-    cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM access_logs")
-    total_accesses = cursor.fetchone()[0]
-    cursor.execute("SELECT COUNT(*) FROM access_logs WHERE status = 'success' OR status = 'GRANTED'")
-    granted = cursor.fetchone()[0]
-    cursor.execute("SELECT COUNT(*) FROM access_logs WHERE status = 'failed' OR status = 'DENIED'")
-    denied = cursor.fetchone()[0]
-    total_users = db.get_user_count()
-    conn.close()
-    return {
-        "total_accesses": total_accesses,
-        "granted": granted,
-        "denied": denied,
-        "total_users": total_users
-    }
+    faces_detected = face.app.get(img_bgr)
+    if not faces_detected:
+        db.log_access(None, "Unknown", "face_verify", "denied", "No face in frame")
+        return {"status": "DENIED", "message": "No face detected"}
 
+    det  = max(faces_detected, key=lambda f: (f.bbox[2]-f.bbox[0])*(f.bbox[3]-f.bbox[1]))
+    emb  = det.embedding
+    norm = emb / np.linalg.norm(emb)
+
+    best_dist = 9.9
+    best_uid  = None
+    best_name = None
+    best_role = None
+
+    for uid, stored, name, role in registered:
+        s_norm = stored / np.linalg.norm(stored)
+        dist   = float(1.0 - np.dot(norm, s_norm))
+        if dist < best_dist:
+            best_dist = dist
+            best_uid  = uid
+            best_name = name
+            best_role = role
+
+    best_uname = ""
+    if best_uid:
+        conn = db.get_conn(); c = conn.cursor()
+        c.execute("SELECT username FROM users WHERE id=?", (best_uid,))
+        row = c.fetchone(); conn.close()
+        best_uname = row[0] if row else ""
+
+    match_pct = max(0, round((1 - best_dist / 2) * 100, 1))
+
+    if best_uid and best_dist <= thr:
+        db.log_access(best_uid, best_name, "face_verify", "granted", f"dist={best_dist:.4f}")
+        return {"status": "GRANTED", "user": best_name, "role": best_role,
+                "username": best_uname, "match": match_pct}
+
+    db.log_access(None, "Unknown", "face_verify", "denied", f"best_dist={best_dist:.4f}")
+    return {"status": "DENIED", "match": match_pct}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  3. IGNITION VERIFY  — 1:1 check before engine start (verify.html)
+# ═══════════════════════════════════════════════════════════════════════════
+@app.post("/api/verify-ignition")
+async def verify_ignition(face_image: UploadFile = File(...), username: str = Form(...)):
+    conn = db.get_conn(); c = conn.cursor()
+    c.execute("SELECT id, full_name, role, face_embedding FROM users WHERE username=?", (username,))
+    row = c.fetchone(); conn.close()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="User not found")
+    uid, full_name, role, face_blob = row
+
+    if not face_blob:
+        raise HTTPException(status_code=400, detail="No face data registered for this user")
+
+    stored_emb = pickle.loads(security.decrypt_data(face_blob))
+
+    contents = await face_image.read()
+    nparr    = np.frombuffer(contents, np.uint8)
+    img_bgr  = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    if img_bgr is None:
+        raise HTTPException(status_code=400, detail="Invalid image")
+
+    face       = _get_face()
+    _, _, thr  = db.get_settings()
+
+    faces_detected = face.app.get(img_bgr)
+    if not faces_detected:
+        db.log_access(uid, username, "ignition_verify", "denied", "No face in frame")
+        return {"status": "DENIED", "message": "No face detected"}
+
+    det  = max(faces_detected, key=lambda f: (f.bbox[2]-f.bbox[0])*(f.bbox[3]-f.bbox[1]))
+    emb  = det.embedding
+    norm = emb / np.linalg.norm(emb)
+    s_n  = stored_emb / np.linalg.norm(stored_emb)
+    dist = float(1.0 - np.dot(norm, s_n))
+
+    match_pct = max(0, round((1 - dist / 2) * 100, 1))
+
+    if dist <= thr:
+        db.log_access(uid, username, "ignition_verify", "granted", f"dist={dist:.4f}")
+        return {"status": "GRANTED", "user": full_name, "match": match_pct}
+
+    db.log_access(uid, username, "ignition_verify", "denied", f"dist={dist:.4f}")
+    return {"status": "DENIED", "match": match_pct}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  4. STATS
+# ═══════════════════════════════════════════════════════════════════════════
 @app.get("/api/stats")
 async def get_stats():
-    conn = sqlite3.connect(db.db_file)
-    cursor = conn.cursor()
-    
-    # Count total attempts in the log
-    cursor.execute("SELECT COUNT(*) FROM access_logs")
-    total_tuple = cursor.fetchone()
-    total = total_tuple[0] if total_tuple else 0
-    
-    # Count successful entries (Matches 'success' or 'GRANTED')
-    cursor.execute("SELECT COUNT(*) FROM access_logs WHERE status IN ('success', 'GRANTED')")
-    granted_tuple = cursor.fetchone()
-    granted = granted_tuple[0] if granted_tuple else 0
-    
-    # Count failed entries (Matches 'failed' or 'DENIED')
-    cursor.execute("SELECT COUNT(*) FROM access_logs WHERE status IN ('failed', 'DENIED')")
-    denied_tuple = cursor.fetchone()
-    denied = denied_tuple[0] if denied_tuple else 0
-    
-    # Use your existing db method for user count
-    total_users = db.get_user_count() 
-    
+    conn = db.get_conn(); c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM access_logs"); total = c.fetchone()[0]
+    c.execute("SELECT COUNT(*) FROM access_logs WHERE status='granted'"); granted = c.fetchone()[0]
+    c.execute("SELECT COUNT(*) FROM access_logs WHERE status='denied'"); denied = c.fetchone()[0]
+    c.execute("SELECT COUNT(*) FROM users"); total_users = c.fetchone()[0]
     conn.close()
-    return {
-        "total_accesses": total,
-        "granted": granted,
-        "denied": denied,
-        "total_users": total_users,
-        "status": "LIVE" # This flag tells the UI to hide "Demo Data"
-    }
+    return {"total_accesses": total, "granted": granted, "denied": denied,
+            "total_users": total_users, "status": "LIVE"}
 
-# --- 4. ACCESS LOGS (For history.html) ---
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  5. ACCESS LOGS
+# ═══════════════════════════════════════════════════════════════════════════
+def _map_method(action: str) -> str:
+    """Map raw action strings from both car_security.py and app.py to FACE/PIN."""
+    a = (action or "").lower()
+    # Face-based actions
+    if a in ("vehicle_start", "face_verify", "ignition_verify"):
+        return "FACE"
+    # PIN-based actions
+    if a in ("pin_start", "pin_login"):
+        return "PIN"
+    # Fallback: scan for keywords
+    if "face" in a or "ignition" in a:
+        return "FACE"
+    if "pin" in a:
+        return "PIN"
+    return a.upper()
+
+def _parse_match_score(action: str, details: str) -> "int | None":
+    """Extract cosine-distance match score from details and convert to 0-100%."""
+    m = re.search(r"dist=([\d.]+)", details or "")
+    if m:
+        dist = float(m.group(1))
+        # cosine dist 0.0 = identical (100%), 2.0 = opposite (0%)
+        pct = max(0, round((1.0 - dist / 2.0) * 100))
+        return pct
+    return None
+
 @app.get("/api/logs")
-async def get_logs(limit: int = 10):
-    conn = sqlite3.connect(db.db_file)
-    cursor = conn.cursor()
-    cursor.execute("SELECT timestamp, username, action, status FROM access_logs ORDER BY timestamp DESC LIMIT ?", (limit,))
-    logs = [{"timestamp": r[0], "user": r[1], "method": r[2], "status": r[3]} for r in cursor.fetchall()]
+async def get_logs(limit: int = 50):
+    conn = db.get_conn()
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute(
+        "SELECT id, timestamp, user_id, username, action, status, details "
+        "FROM access_logs ORDER BY timestamp DESC LIMIT ?",
+        (min(limit, 500),)
+    )
+    rows = c.fetchall()
+
+    # Build a quick user_id → username lookup so we can resolve
+    # logs written by car_security.py (which store full_name as username)
+    c.execute("SELECT id, username, full_name FROM users")
+    uid_map = {r["id"]: r["username"] for r in c.fetchall()}
+
+    # Build GPS lookup: for each log entry, find the closest GPS point in time
+    # Load all GPS points once and match by timestamp proximity
+    gps_by_uid: dict = {}
+    try:
+        c.execute(
+            "SELECT user_id, username, latitude, longitude, timestamp "
+            "FROM gps_log ORDER BY timestamp DESC"
+        )
+        gps_rows = c.fetchall()
+        # Group last known position per user_id (most recent first, so first = latest)
+        for g in gps_rows:
+            key = g["user_id"] if g["user_id"] else g["username"]
+            if key not in gps_by_uid:
+                gps_by_uid[key] = (g["latitude"], g["longitude"])
+    except Exception:
+        pass  # gps_log table may not have entries yet
+
     conn.close()
+
+    logs = []
+    for r in rows:
+        action  = r["action"] or ""
+        details = r["details"] or ""
+        status_raw = (r["status"] or "").lower()
+        status  = "GRANTED" if status_raw == "granted" else "DENIED" if status_raw == "denied" else status_raw.upper()
+
+        # Resolve canonical username
+        uid = r["user_id"]
+        if uid and uid in uid_map:
+            display_user = uid_map[uid]
+        else:
+            display_user = r["username"] or "Unknown"
+
+        # Find GPS location for this log entry
+        gps_coords = None
+        if uid and uid in gps_by_uid:
+            lat, lon = gps_by_uid[uid]
+            gps_coords = f"{lat:.5f}, {lon:.5f}"
+        elif display_user in gps_by_uid:
+            lat, lon = gps_by_uid[display_user]
+            gps_coords = f"{lat:.5f}, {lon:.5f}"
+
+        logs.append({
+            "timestamp":     r["timestamp"],
+            "user":          display_user,
+            "method":        _map_method(action),
+            "status":        status,
+            "details":       details,
+            "match_score":   _parse_match_score(action, details),
+            "gps_location":  gps_coords,
+            "engine_status": "ENABLED" if status == "GRANTED" else "LOCKED",
+        })
     return {"logs": logs}
 
-# --- 5. DRIVER REGISTRATION (For register.html) ---
-@app.post("/api/register")
-async def register_driver(
-    name: str = Form(...),
-    driver_id: str = Form(...), # This is the username
-    pin: str = Form(...),
-    phone: str = Form(...),
-    vehicle_reg: str = Form(...),
-    face_image: UploadFile = File(...)
-):
-    # The frontend is sending the 'driver_id' field, which we'll use as the username.
-    username = driver_id
 
-    # Check if user already exists by username
-    if db.check_user_exists_by_username(username):
-        raise HTTPException(status_code=400, detail="Username (Driver ID) already exists.")
-
-    # Check if user already exists by name (optional but good practice)
-    if db.check_user_exists_by_name(name):
-        raise HTTPException(status_code=400, detail=f"A user with the name '{name}' is already registered.")
-
-    # Read the face image data
-    contents = await face_image.read()
-    img = cv2.imdecode(np.frombuffer(contents, np.uint8), cv2.IMREAD_GRAYSCALE)
-    img_resized = cv2.resize(img, (100, 100))
-    face_data = pickle.dumps(img_resized)
-
-    # Check for face similarity
-    existing_faces = db.get_all_face_data()
-    if existing_faces:
-        # Increase threshold to make it less likely to find a false positive match
-        is_similar, similarity, _ = face_system.check_face_similarity(face_data, existing_faces, 0.85)
-        if is_similar:
-            raise HTTPException(status_code=400, detail=f"This face is too similar to an existing user (match: {similarity:.1%}). Each person can only be registered once.")
-
-    # Register the driver using the new web-specific function
-    user_id, error_message = db.register_driver_from_web(
-        full_name=name,
-        username=username,
-        pin=pin,
-        face_data=face_data,
-        phone=phone,
-        vehicle_reg=vehicle_reg
-    )
-
-    if error_message:
-        raise HTTPException(status_code=500, detail=error_message)
-
-    return {"status": "success", "message": "Driver registered successfully", "user_id": user_id}
-
-# --- 6. USER MANAGEMENT (For manager.html) ---
+# ═══════════════════════════════════════════════════════════════════════════
+#  6. USERS — JOIN on user_id (not username) to handle full_name vs username mismatch
+# ═══════════════════════════════════════════════════════════════════════════
 @app.get("/api/users")
 async def get_users():
-    """
-    Endpoint to retrieve all drivers with their access statistics for the manager dashboard.
-    """
-    users_data = db.get_all_users_with_stats()
-    return {"users": users_data}
-
-# --- 7. GPS TRACKING (For gps.html) ---
-from pydantic import BaseModel
-
-class GpsLog(BaseModel):
-    latitude: float
-    longitude: float
-
-@app.post("/api/log-gps")
-async def log_gps_position(data: GpsLog):
-    # NOTE: In a real app, you would get the user_id from a session token.
-    # For now, we'll hardcode it to the main owner/user for demonstration.
-    user_id = 1 
-    conn = sqlite3.connect(db.db_file)
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO gps_log (user_id, latitude, longitude) VALUES (?, ?, ?)",
-        (user_id, data.latitude, data.longitude)
-    )
-    conn.commit()
-    conn.close()
-    return {"status": "success", "message": "Position logged"}
-
-@app.get("/api/gps-history")
-async def get_gps_history():
-    conn = sqlite3.connect(db.db_file)
+    conn = db.get_conn()
     conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    # Fetching the last 1000 points for performance reasons
-    cursor.execute("SELECT latitude, longitude, timestamp FROM gps_log ORDER BY timestamp ASC LIMIT 1000")
-    history = cursor.fetchall()
-    conn.close()
-    return {"history": [dict(row) for row in history]}
+    c = conn.cursor()
+    c.execute(
+        """SELECT u.id, u.username, u.full_name, u.role, u.created_date,
+                  (u.face_embedding IS NOT NULL) AS has_face,
+                  COUNT(a.id)      AS total_accesses,
+                  MAX(a.timestamp) AS last_access
+           FROM users u
+           LEFT JOIN access_logs a ON a.user_id = u.id
+           GROUP BY u.id
+           ORDER BY u.role DESC, u.full_name"""
+    )
+    rows = c.fetchall(); conn.close()
+    return {"users": [
+        {
+            "id":                   r["id"],
+            "driver_id":            r["username"],
+            "name":                 r["full_name"],
+            "role":                 r["role"],
+            "status":               "ACTIVE",
+            "has_face_image":       bool(r["has_face"]),
+            "total_accesses":       r["total_accesses"],
+            "last_access":          r["last_access"],
+            "registered_date":      r["created_date"],
+            "phone":                "—",
+            "vehicle_registration": "—",
+        } for r in rows
+    ]}
+
 
 @app.delete("/api/users/{username}")
 async def delete_user(username: str):
-    """
-    Endpoint to permanently delete a user and their associated data.
-    """
-    success, message = db.delete_user_by_username(username)
-    if not success:
-        raise HTTPException(status_code=404, detail=message)
-    return {"status": "success", "message": message}
+    conn = db.get_conn(); c = conn.cursor()
+    c.execute("SELECT id, full_name, role FROM users WHERE username=?", (username,))
+    row = c.fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="User not found")
+    uid, name, role = row
+    c.execute("DELETE FROM users WHERE id=?", (uid,))
+    conn.commit(); conn.close()
+    db.log_event("USER_DELETED", "INFO", f"Deleted {role}: {name} (@{username})")
+    return {"status": "success", "message": f"{name} deleted"}
 
-from fastapi import Response
 
+# ═══════════════════════════════════════════════════════════════════════════
+#  7. USER FACE AVATAR
+#     InsightFace stores embeddings, not pixel images.
+#     We return a 404 so the dashboard falls back to a silhouette icon.
+#     If you later store actual photos, replace this endpoint.
+# ═══════════════════════════════════════════════════════════════════════════
 @app.get("/api/users/{username}/image")
 async def get_user_image(username: str):
-    """
-    Endpoint to retrieve the face image for a specific user.
-    """
-    face_data_blob = db.get_face_image_by_username(username)
+    raise HTTPException(status_code=404, detail="Pixel image not available — embedding only")
 
-    if not face_data_blob:
-        raise HTTPException(status_code=404, detail="User or image not found.")
 
-    try:
-        # Unpickle the data to get the numpy array
-        img_array = pickle.loads(face_data_blob)
-        
-        # Encode the numpy array as a JPEG
-        is_success, buffer = cv2.imencode(".jpg", img_array)
-        if not is_success:
-            raise HTTPException(status_code=500, detail="Failed to encode image.")
-            
-        # Return the image as a response
-        return Response(content=buffer.tobytes(), media_type="image/jpeg")
+# ═══════════════════════════════════════════════════════════════════════════
+#  8. REGISTER DRIVER
+# ═══════════════════════════════════════════════════════════════════════════
+@app.post("/api/register")
+async def register_driver(
+    name:        str        = Form(...),
+    driver_id:   str        = Form(...),
+    pin:         str        = Form(...),
+    phone:       str        = Form(""),
+    vehicle_reg: str        = Form(""),
+    face_image:  UploadFile = File(...),
+):
+    if db.username_taken(driver_id):
+        raise HTTPException(status_code=400, detail="Driver ID already in use")
+    if db.name_taken(name):
+        raise HTTPException(status_code=400, detail=f"A user named '{name}' is already registered")
 
-    except Exception as e:
-        # If unpickling or encoding fails
-        raise HTTPException(status_code=500, detail=f"Error processing image: {e}")
+    contents = await face_image.read()
+    nparr    = np.frombuffer(contents, np.uint8)
+    img_bgr  = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    if img_bgr is None:
+        raise HTTPException(status_code=400, detail="Invalid face image")
+
+    face = _get_face()
+    faces_detected = face.app.get(img_bgr)
+    if not faces_detected:
+        raise HTTPException(status_code=400, detail="No face detected — use better lighting")
+
+    det = max(faces_detected, key=lambda f: (f.bbox[2]-f.bbox[0])*(f.bbox[3]-f.bbox[1]))
+    emb = det.embedding
+
+    existing = db.all_embeddings()
+    if existing:
+        is_dup, dist, dup_name = face.is_duplicate(emb, existing)
+        if is_dup:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Face already registered as '{dup_name}' (dist={dist:.3f})"
+            )
+
+    salt    = os.urandom(32).hex()
+    pw_hash = hashlib.pbkdf2_hmac("sha256", pin.encode(), salt.encode(), 100000).hex()
+    blob    = security.encrypt_data(pickle.dumps(emb))
+
+    if not db.add_user(driver_id, pw_hash, salt, "driver", name, blob):
+        raise HTTPException(status_code=500, detail="Database error")
+
+    db.log_event("DRIVER_REGISTERED", "INFO", f"{name} registered via web")
+    return {"status": "success", "message": "Driver registered successfully"}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  9. GPS
+# ═══════════════════════════════════════════════════════════════════════════
+class GpsLog(BaseModel):
+    latitude:  float
+    longitude: float
+    username:  str = ""
+
+def _ensure_gps_table():
+    conn = db.get_conn(); c = conn.cursor()
+    c.execute(
+        """CREATE TABLE IF NOT EXISTS gps_log (
+            id        INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id   INTEGER,
+            username  TEXT,
+            latitude  REAL,
+            longitude REAL,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )"""
+    )
+    conn.commit(); conn.close()
+
+_ensure_gps_table()
+
+
+@app.post("/api/log-gps")
+async def log_gps_position(data: GpsLog):
+    conn = db.get_conn(); c = conn.cursor()
+    uid = None
+    if data.username:
+        c.execute("SELECT id FROM users WHERE username=?", (data.username,))
+        row = c.fetchone()
+        uid = row[0] if row else None
+    c.execute(
+        "INSERT INTO gps_log (user_id, username, latitude, longitude) VALUES (?,?,?,?)",
+        (uid, data.username, data.latitude, data.longitude)
+    )
+    conn.commit(); conn.close()
+    return {"status": "success"}
+
+
+@app.get("/api/gps-history")
+async def get_gps_history(username: str = ""):
+    conn = db.get_conn()
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    if username:
+        c.execute(
+            "SELECT latitude, longitude, timestamp FROM gps_log "
+            "WHERE username=? ORDER BY timestamp ASC LIMIT 1000",
+            (username,)
+        )
+    else:
+        c.execute(
+            "SELECT latitude, longitude, timestamp FROM gps_log "
+            "ORDER BY timestamp ASC LIMIT 1000"
+        )
+    rows = c.fetchall(); conn.close()
+    return {"history": [dict(r) for r in rows]}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  10. SETTINGS
+# ═══════════════════════════════════════════════════════════════════════════
+@app.get("/api/settings")
+async def get_settings():
+    sh, eh, thr = db.get_settings()
+    return {"allowed_start_hour": sh, "allowed_end_hour": eh, "recognition_threshold": thr}
+
+
+class HoursPayload(BaseModel):
+    start_hour: int
+    end_hour:   int
+
+@app.post("/api/settings/hours")
+async def update_hours(payload: HoursPayload):
+    if not (0 <= payload.start_hour <= 23 and 0 <= payload.end_hour <= 23):
+        raise HTTPException(status_code=400, detail="Hours must be 0-23")
+    if payload.start_hour >= payload.end_hour:
+        raise HTTPException(status_code=400, detail="Start must be before end")
+    db.update_hours(payload.start_hour, payload.end_hour)
+    return {"status": "success"}
+
+
+class ThresholdPayload(BaseModel):
+    threshold: float
+
+@app.post("/api/settings/threshold")
+async def update_threshold(payload: ThresholdPayload):
+    if not (0.25 <= payload.threshold <= 0.60):
+        raise HTTPException(status_code=400, detail="Threshold 0.25-0.60")
+    db.update_threshold(payload.threshold)
+    return {"status": "success"}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  11. SECURITY EVENTS
+# ═══════════════════════════════════════════════════════════════════════════
+@app.get("/api/events")
+async def get_events(limit: int = 50):
+    conn = db.get_conn()
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute(
+        "SELECT timestamp, event_type, severity, details "
+        "FROM security_events ORDER BY timestamp DESC LIMIT ?",
+        (min(limit, 200),)
+    )
+    rows = c.fetchall(); conn.close()
+    return {"events": [dict(r) for r in rows]}

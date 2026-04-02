@@ -294,37 +294,24 @@
     const PAGE_SIZE = 15;
 
     async function loadLogs() {
+      const tbody = document.getElementById('logs-body');
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:40px">Loading access logs...</td></tr>`;
       try {
         const data = await apiGet('/logs?limit=200');
-        allLogs = data.logs || data;
+        allLogs = data.logs || [];
         updateStats(allLogs);
         applyFilters();
+        if (!allLogs.length) {
+          showToast('No access logs yet', 'info');
+        }
       } catch {
-        allLogs = generateDemoLogs(60);
-        updateStats(allLogs);
-        applyFilters();
-        showToast('Showing demo data — backend offline', 'info');
+        allLogs = [];
+        updateStats([]);
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--accent-red);padding:40px">
+          Backend offline — start the server with: <code>uvicorn app:app --reload</code>
+        </td></tr>`;
+        showToast('Backend offline — cannot load logs', 'error');
       }
-    }
-
-    function generateDemoLogs(n) {
-      const users   = ['John Doe', 'Jane Smith', 'Unknown'];
-      const methods = ['FACE', 'PIN', 'FACE'];
-      const now = Date.now();
-      return Array.from({ length: n }, (_, i) => {
-        const status = Math.random() > 0.08 ? 'GRANTED' : 'DENIED';
-        const score  = status === 'GRANTED' ? Math.round(75 + Math.random() * 25) : Math.round(20 + Math.random() * 40);
-        const user   = status === 'GRANTED' ? users[Math.floor(Math.random()*2)] : users[2];
-        return {
-          timestamp:     new Date(now - i * 3600000 * (0.5 + Math.random())).toISOString(),
-          user,
-          method:        methods[Math.floor(Math.random()*2)],
-          status,
-          match_score:   score,
-          gps_location:  `-26.${(2000 + Math.floor(Math.random()*200))}, 28.${(400 + Math.floor(Math.random()*100))}`,
-          engine_status: status === 'GRANTED' ? 'ENABLED' : 'LOCKED'
-        };
-      });
     }
 
     function updateStats(logs) {
@@ -485,7 +472,13 @@
       showToast('CSV exported', 'success');
     }
 
-    document.addEventListener('DOMContentLoaded', loadLogs);
+    document.addEventListener('DOMContentLoaded', () => {
+      if (!localStorage.getItem('userName')) {
+        window.location.href = 'login.html';
+        return;
+      }
+      loadLogs();
+    });
   </script>
 </body>
 </html>

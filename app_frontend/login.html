@@ -475,11 +475,9 @@
         box.classList.remove('scanning');
 
         if (ok && data.status === 'GRANTED') {
-          // Store real session data to hide demo mode and show user name
           localStorage.setItem('userName', data.user || 'Authorized User');
           localStorage.setItem('userRole', data.role || 'driver');
-          localStorage.setItem('userUsername', data.username || ''); // Store the username
-          localStorage.setItem('isDemo', 'false');
+          localStorage.setItem('userUsername', data.username || '');
 
           showMsg('success', `✓ Access Granted — Welcome, ${data.user || 'Driver'}!`);
           showToast('Authentication successful', 'success');
@@ -512,19 +510,12 @@
 
         const { ok, data } = await apiPost('/login', fd);
 
-        // Debugging: Crucial for fixing the "no change" issue
-        console.log("Server Response Data:", data);
-
-        // FLEXIBLE CHECK: Catches 'success', 'GRANTED', or any successful login message
-        if (ok && (data.status === 'success' || data.status === 'GRANTED' || data.message === 'Login successful')) {
+        if (ok && (data.status === 'success' || data.status === 'GRANTED')) {
 
           // 1. Save database identity to browser memory
           localStorage.setItem('userName', data.user || "Authorized User");
           localStorage.setItem('userRole', data.role || "driver");
-          localStorage.setItem('userUsername', data.username || ''); // Store the username
-
-          // 2. Disable Demo Mode so real stats show up
-          localStorage.setItem('isDemo', 'false');
+          localStorage.setItem('userUsername', data.username || '');
 
           showMsg('success', `✓ Verified: Welcome ${data.user || ''}`);
           showToast('Authentication successful', 'success');
@@ -532,19 +523,15 @@
           // 3. Clear input and use ABSOLUTE path for redirect to avoid 404
           pinInput.value = '';
           setTimeout(() => {
-            console.log("Moving to Dashboard...");
-            window.location.href = '/app_frontend/dashboard.html';
+            window.location.href = 'dashboard.html';
           }, 1000);
 
         } else {
-          // This runs if server says 200 OK but logic says 'Invalid'
-          console.error("Login logic rejected by backend:", data);
-          showMsg('error', '✕ Invalid PIN Access Denied.');
+          showMsg('error', '✕ Invalid PIN — Access Denied.');
           showToast('Access denied', 'error');
           pinInput.value = '';
         }
       } catch (err) {
-        console.error("Connection Error:", err);
         showMsg('error', 'System Offline — check your Uvicorn terminal.');
       }
     }
